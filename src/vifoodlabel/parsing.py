@@ -51,7 +51,16 @@ def parse_model_json(raw_text: str) -> ParseResult:
         except (json.JSONDecodeError, ValueError):
             pass
 
-    span = _largest_brace_span(_strip_fence(text))
+    fenced = _strip_fence(text)
+    span = _largest_brace_span(fenced)
+    if span is None:
+        # No closing brace anywhere -- e.g. truncated before any nested
+        # object completed. repair_json can often still infer and close
+        # the missing structure on its own; worth trying on whatever's
+        # left from the first '{' onward rather than giving up here.
+        start = fenced.find("{")
+        span = fenced[start:] if start != -1 else None
+
     if span is not None:
         try:
             data = json.loads(span)

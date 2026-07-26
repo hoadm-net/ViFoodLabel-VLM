@@ -39,6 +39,15 @@ roster) before touching scoring logic or experiment design.
   what makes every subcommand resumable and idempotent. Preserve this
   pattern in any new subcommand; don't call the API without going through
   `src/vifoodlabel/runner.py`.
+- **Test suite: `uv run pytest`** (`tests/`, one file per `src/vifoodlabel/`
+  module). No network calls -- `client.py`/`runner.py` tests mock the
+  OpenAI SDK call and the disk cache (via `tmp_path`/`monkeypatch`), never
+  hit OpenRouter or write into the real `results/`. Several tests exist
+  specifically because a real scoring bug was found by hand (search the
+  test docstrings/git log for "regression") -- when you fix a bug in
+  `matching.py`/`normalize.py`/`schema.py`/etc., add the failing case as a
+  test before fixing it, the same way. Run the suite before considering any
+  change to scoring logic done.
 
 ## Hard rules
 

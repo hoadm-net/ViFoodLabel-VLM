@@ -86,14 +86,20 @@ def normalize_unit(raw: str) -> str | None:
 
 
 def extract_number_unit(raw: str) -> tuple[float | None, str | None]:
-    """Best-effort split of a value string like '70 kcal' -> (70.0, 'kcal')."""
+    """Best-effort split of a value string like '70 kcal' -> (70.0, 'kcal').
+
+    Only the unit token immediately after the number is captured -- stops at
+    whitespace/punctuation, not just the next digit. Without this, a value
+    like '140 g (14 g x 10 cây).' (real net_weight ground truth) grabbed
+    "g (14 g x 10 cây" as the "unit", which never matches a plain "g".
+    """
     text = raw or ""
     num_match = _NUMBER_RE.search(text)
     if not num_match:
         return None, None
     number = normalize_number(num_match.group(0))
     remainder = text[num_match.end():].strip()
-    unit_match = re.match(r"[^\d]*", remainder)
+    unit_match = re.match(r"[^\d\s(),;]*", remainder)
     unit_raw = unit_match.group(0).strip() if unit_match else ""
     unit = normalize_unit(unit_raw) if unit_raw else None
     return number, unit

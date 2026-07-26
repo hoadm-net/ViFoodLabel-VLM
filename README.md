@@ -85,6 +85,17 @@ insufficient credits, ...) is never cached, so it's retried automatically
 on the next run. Run
 `uv run main.py <subcommand> --help` for the full list per subcommand.
 
+## Testing
+
+```bash
+uv run pytest
+```
+
+Unit tests for the scoring/matching/normalization logic and the client's
+error handling — no network calls, nothing touches the real `results/`.
+Several tests are explicit regressions for real scoring bugs found while
+running the benchmark (see each test file's module docstring).
+
 ## Citation
 
 ```bibtex
