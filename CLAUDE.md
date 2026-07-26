@@ -57,7 +57,11 @@ roster) before touching scoring logic or experiment design.
   or the provider's own docs) before adding or changing an entry in
   `configs/models.yaml`.
 - **Prefer `--dry-run` before any real run against paid models**, especially
-  before changing prompt text (longer prompts = more input tokens across
-  every model) or widening `--images`/`--start-id`/`--end-id`/removing
-  `--limit`. `--resume` (prints cached vs. remaining count) is cheap to run
+  before widening `--images`/`--start-id`/`--end-id`/removing `--limit` —
+  it prints the scope (images x models x conditions = call count) without
+  calling anything. It does NOT estimate a dollar cost (removed; it needed
+  periodic recalibration to stay accurate and wasn't relied on) -- actual
+  spend is tracked from real per-call token usage in
+  `results/cost_ledger.csv`, cross-checked against the OpenRouter
+  dashboard. `--resume` (prints cached vs. remaining count) is cheap to run
   first too.

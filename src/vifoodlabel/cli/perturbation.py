@@ -13,12 +13,12 @@ import random
 from vifoodlabel.cli.common import (
     add_dataset_args,
     add_execution_args,
+    print_dry_run_scope,
     print_resume_status,
     resolve_image_ids,
     resolve_selected_models,
 )
 from vifoodlabel.config import SCORED_RESULTS_DIR
-from vifoodlabel.cost import estimate_run_cost
 from vifoodlabel.io_utils import dataset_index, labeled_only, list_image_ids
 from vifoodlabel.metrics import (
     FIELD_SCORE_KEY,
@@ -71,8 +71,7 @@ def run(args: argparse.Namespace) -> None:
     instruction = build_instruction(CANONICAL_LANGUAGE, CANONICAL_SHOT)
 
     if args.dry_run:
-        est = estimate_run_cost(models, instruction, n_images=len(items), n_conditions=len(conditions))
-        print(est.to_string(index=False))
+        print_dry_run_scope(models, items, condition_names)
         return
 
     run_items = []

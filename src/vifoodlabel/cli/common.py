@@ -32,7 +32,7 @@ def add_execution_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--concurrency", type=int, default=DEFAULT_CONCURRENCY_PER_MODEL, help="Concurrent requests per model")
     parser.add_argument("--force", action="store_true", help="Bypass the response cache and re-call the API")
     parser.add_argument("--resume", action="store_true", help="Print how many (model, image, condition) triples are already cached before running")
-    parser.add_argument("--dry-run", action="store_true", help="Estimate cost only, no API calls")
+    parser.add_argument("--dry-run", action="store_true", help="Print the run's scope (images x models x conditions) and exit, no API calls")
 
 
 def _ids_from_range(start: int, end: int) -> list[str]:
@@ -75,3 +75,14 @@ def print_resume_status(
         if load_cached(tier, model, item.image_id, condition) is not None
     )
     print(f"  resume: {cached}/{total} (model, image, condition) triples already cached, {total - cached} remaining")
+
+
+def print_dry_run_scope(
+    models: list[ModelSpec], items: list[DatasetItem], conditions: list[str]
+) -> None:
+    """No cost figure on purpose -- actual spend is tracked from real usage
+    (results/cost_ledger.csv) and the OpenRouter dashboard, not guessed
+    ahead of time. This just confirms the scope before it's run for real."""
+    n_calls = len(models) * len(items) * len(conditions)
+    print(f"  dry run: {len(items)} images x {len(models)} models x {len(conditions)} condition(s) = {n_calls} calls (no API calls made)")
+    print(f"  models: {', '.join(m.key for m in models)}")

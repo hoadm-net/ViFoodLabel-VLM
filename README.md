@@ -60,7 +60,7 @@ separately — see [docs/models.md](docs/models.md#self-hosting-vintern).
 ## Usage
 
 ```bash
-# Sanity-check cost before spending anything
+# Sanity-check scope (images x models x conditions) before spending anything
 uv run main.py benchmark --dry-run
 
 # Try a small id range / a single model first
@@ -76,9 +76,13 @@ uv run main.py report
 Every API-calling subcommand (`benchmark`, `prompt-sensitivity`,
 `perturbation`) supports `--models`, `--images` or `--start-id`/`--end-id`/
 `--limit`, `--force` (bypass cache), `--resume` (report cache coverage before
-running), and `--dry-run`. API responses are cached to disk keyed by
-`(tier, model, image, condition)`, so any command is safely interruptible
-and resumable — re-running never re-purchases an already-cached call. Run
+running), and `--dry-run` (print the scope, no API calls, no cost figure —
+actual spend is tracked from real usage in `results/cost_ledger.csv`).
+API responses are cached to disk keyed by `(tier, model, image, condition)`,
+so any command is safely interruptible and resumable — re-running never
+re-purchases an already-cached call, and a failed call (network glitch,
+insufficient credits, ...) is never cached, so it's retried automatically
+on the next run. Run
 `uv run main.py <subcommand> --help` for the full list per subcommand.
 
 ## Citation
