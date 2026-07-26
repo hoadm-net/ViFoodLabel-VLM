@@ -3,6 +3,8 @@ Carefully read the attached label image and extract the information into a SINGL
 
 {fields}
 
+{classification_rules}
+
 Mandatory rules:
 1. Output valid JSON only — no explanation, no markdown code fence.
 2. If a field does not appear on the label, use an empty string "" (for string fields) or an empty array [] (for array fields).

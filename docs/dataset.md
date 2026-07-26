@@ -63,8 +63,14 @@ VLM's raw output can't be trusted to match the schema exactly (see
 
 ## Annotation
 
-Ground truth is hand-annotated per image. Scoring code in this repo treats
-any image without a matching `data/labels/NNNN.json` as simply not-yet-scored
+Ground truth is hand-annotated per image, guided by
+[annotation-guidelines.md](annotation-guidelines.md) — most importantly the
+`ingredient`/`additive` split and the `warning` definition, both of which
+are idiosyncratic enough that they're also distilled into the model prompts
+(`prompts/classification_rules_{vi,en}.txt`) so zero-shot models are
+evaluated against a task they were actually told, not one they'd have to
+guess. Scoring code in this repo treats any image without a matching
+`data/labels/NNNN.json` as simply not-yet-scored
 — every script filters to `labeled_only()` images, so the pipeline runs
 correctly today against a partial dataset and scales automatically as more
 labels are added.

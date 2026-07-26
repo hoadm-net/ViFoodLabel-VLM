@@ -26,6 +26,7 @@ targeting *Discover Artificial Intelligence* (Springer Nature).
 
 See [`docs/`](docs/) for full methodology:
 [dataset & schema](docs/dataset.md) ·
+[annotation guidelines](docs/annotation-guidelines.md) ·
 [metric definitions](docs/metrics.md) ·
 [experimental design](docs/experimental-design.md) ·
 [models & groups](docs/models.md).

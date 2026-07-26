@@ -36,8 +36,9 @@ def build_instruction(language: Language, shot: Shot) -> str:
     if shot == "one":
         example = _load(f"one_shot_example_{language}.txt")
     fields = _load(f"field_descriptions_{language}.txt")
+    classification_rules = _load(f"classification_rules_{language}.txt")
     template = _load(f"task_instruction_{language}.txt")
-    return template.format(fields=fields, example=example)
+    return template.format(fields=fields, classification_rules=classification_rules, example=example)
 
 
 # The canonical Tier-1 benchmark condition.

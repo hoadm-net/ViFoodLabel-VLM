@@ -3,6 +3,8 @@ Hãy đọc kỹ ảnh nhãn sản phẩm được đính kèm và trích xuất
 
 {fields}
 
+{classification_rules}
+
 Quy tắc bắt buộc:
 1. Chỉ xuất ra JSON hợp lệ, không kèm giải thích, không dùng markdown code fence.
 2. Nếu một trường không xuất hiện trên nhãn, dùng chuỗi rỗng "" (với trường dạng chuỗi) hoặc mảng rỗng [] (với trường dạng mảng).
