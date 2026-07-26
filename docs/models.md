@@ -14,7 +14,14 @@ put together — re-verify before relying on it, since this space moves fast.
 |---|---|---|---|
 | GPT-5.4 Standard | `openai/gpt-5.4` | 2.50 | 15.00 |
 | Claude Sonnet 5 | `anthropic/claude-sonnet-5` | 2.00 | 10.00 |
-| Gemini 3 Pro Preview | `google/gemini-3-pro-preview` | 2.00 | 12.00 |
+| Gemini 3.1 Pro Preview | `google/gemini-3.1-pro-preview` | 2.00 | 12.00 |
+
+`google/gemini-3-pro-preview` (the original pick) was discontinued by
+Google on 2026-03-09 — OpenRouter started returning `404 No endpoints
+found` for it. Caught by `--resume`/`json_validity_rate` showing 0% for
+this model on the first real test run; see the git history of this file
+for a live example of exactly the kind of drift the note above warns
+about.
 
 ## Open-source large VLMs (via OpenRouter)
 

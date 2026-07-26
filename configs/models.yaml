@@ -29,9 +29,12 @@ models:
     price_input_per_m: 2.00
     price_output_per_m: 10.00
 
-  - key: gemini-3-pro
-    slug: google/gemini-3-pro-preview
-    display_name: "Gemini 3 Pro Preview"
+  # google/gemini-3-pro-preview was discontinued 2026-03-09 ("No endpoints
+  # found" on OpenRouter); gemini-3.1-pro-preview is the current live
+  # flagship (verified live against OpenRouter, same $2/$12 pricing).
+  - key: gemini-3.1-pro
+    slug: google/gemini-3.1-pro-preview
+    display_name: "Gemini 3.1 Pro Preview"
     group: closed_frontier
     open_weight: false
     price_input_per_m: 2.00
