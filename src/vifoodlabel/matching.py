@@ -134,13 +134,51 @@ class SetMatchResult:
     n_gt: int = 0
 
 
+def _merge_aware_bonus(
+    pred_items: list[str], gt_items: list[str], threshold: float, matches: list[tuple[int, int, float]]
+) -> tuple[int, int]:
+    """Credit leftover (unmatched) items when one side's leftovers, joined
+    together, are a high-similarity match for a single leftover item on the
+    other side -- e.g. two ground-truth warning sentences the model merged
+    into one list entry (or vice versa). Content-equivalent, just
+    re-segmented differently, so it shouldn't score as a total miss.
+
+    Deliberately narrow: only "several items on one side == one item on the
+    other" is credited, not arbitrary many-to-many regrouping, since that's
+    the actual failure mode observed (adjacent sentences split/merged), not
+    a license to paper over hallucinated or dropped items.
+
+    Returns (extra_pred_credit, extra_gt_credit) to add to the numerators
+    of precision and recall respectively.
+    """
+    matched_pred = {p for p, _g, _s in matches}
+    matched_gt = {g for _p, g, _s in matches}
+    leftover_pred = [i for i in range(len(pred_items)) if i not in matched_pred]
+    leftover_gt = [i for i in range(len(gt_items)) if i not in matched_gt]
+    if not leftover_pred or not leftover_gt:
+        return 0, 0
+
+    if len(leftover_gt) > 1:
+        merged_gt_text = " ".join(gt_items[i] for i in leftover_gt)
+        if any(_text_similarity(pred_items[i], merged_gt_text) >= threshold for i in leftover_pred):
+            return 1, len(leftover_gt)
+
+    if len(leftover_pred) > 1:
+        merged_pred_text = " ".join(pred_items[i] for i in leftover_pred)
+        if any(_text_similarity(merged_pred_text, gt_items[i]) >= threshold for i in leftover_gt):
+            return len(leftover_pred), 1
+
+    return 0, 0
+
+
 def match_list_field(
     pred_items: list[str], gt_items: list[str], threshold: float = DEFAULT_LIST_MATCH_THRESHOLD
 ) -> SetMatchResult:
     matches = _bipartite_match(pred_items, gt_items, _text_similarity, threshold)
+    extra_pred, extra_gt = _merge_aware_bonus(pred_items, gt_items, threshold, matches)
     tp = len(matches)
-    precision = tp / len(pred_items) if pred_items else 1.0
-    recall = tp / len(gt_items) if gt_items else 1.0
+    precision = (tp + extra_pred) / len(pred_items) if pred_items else 1.0
+    recall = (tp + extra_gt) / len(gt_items) if gt_items else 1.0
     f1 = 0.0 if (precision + recall) == 0 else 2 * precision * recall / (precision + recall)
     return SetMatchResult(precision=precision, recall=recall, f1=f1, matched_pairs=matches, n_pred=len(pred_items), n_gt=len(gt_items))
 

@@ -14,6 +14,16 @@ import unicodedata
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _NUMBER_RE = re.compile(r"[-+]?\d[\d.,]*")
+_TRAILING_SENTENCE_PUNCT_RE = re.compile(r"[.!?]+$")
+# Curly/typographic quote variants -> straight quotes. Model output and
+# hand-typed ground truth mix these inconsistently (e.g. "BEST BEFORE" vs
+# "BEST BEFORE") for otherwise-identical text; left unfolded, this alone
+# was enough to push a correct answer below the lenient-match threshold.
+_QUOTE_TRANSLATION = str.maketrans({
+    "“": '"', "”": '"', "„": '"', "‟": '"',
+    "‘": "'", "’": "'", "‚": "'", "‛": "'",
+    "«": '"', "»": '"',
+})
 
 _UNIT_ALIASES = {
     "g": "g", "gr": "g", "gram": "g", "grams": "g",
@@ -33,9 +43,12 @@ _DATE_PATTERNS = [
 
 
 def normalize_text(s: str) -> str:
-    """NFC-normalize, collapse whitespace, lowercase. The baseline for all matching."""
+    """NFC-normalize, fold quote styles, collapse whitespace, strip trailing
+    sentence punctuation, lowercase. The baseline for all matching."""
     s = unicodedata.normalize("NFC", s or "")
+    s = s.translate(_QUOTE_TRANSLATION)
     s = _WHITESPACE_RE.sub(" ", s).strip()
+    s = _TRAILING_SENTENCE_PUNCT_RE.sub("", s).strip()
     return s.lower()
 
 
