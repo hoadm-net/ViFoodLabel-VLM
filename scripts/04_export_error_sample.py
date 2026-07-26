@@ -11,6 +11,9 @@ Suggested categories (free text, but keep these as the shared vocabulary):
   wrong_unit        - number right, unit wrong/missing
   pairing_error      - nutrition value correct but attached to the wrong name
   missing_additive     - an additive present on the label was dropped
+  wrong_language        - correct content, but taken from a non-Vietnamese
+                          portion of a multi-language label instead of the
+                          Vietnamese text (see docs/annotation-guidelines.md)
   hallucination          - content not present on the label at all
   wrong_value              - any other incorrect value/content
   missing_field               - field left empty when the label had content

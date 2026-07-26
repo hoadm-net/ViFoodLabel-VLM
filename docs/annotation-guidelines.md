@@ -205,10 +205,18 @@ instruction part (temperature, duration) is not.
   date relative to the expiry date instead of an absolute date (e.g. "NSX:
   06 tháng trước HSD", "Ngày sản xuất: 45 ngày trước hạn sử dụng"). Keep it
   verbatim as printed — don't compute an actual date.
-- **Prefer Vietnamese on bilingual labels.** If a label prints both
-  Vietnamese and English for the same content, take only the Vietnamese
-  version (drop the duplicate English translation). Only take the English
-  text if that field has no corresponding Vietnamese version.
+- **Prefer Vietnamese, no matter how many languages are on the label.**
+  Imported products (uncommon but present in the dataset) can print the
+  country-of-origin language, English, *and* a Vietnamese supplementary
+  label ("nhãn phụ", legally required for imports under Nghị định
+  43/2017) all at once — sometimes as a separate sticker placed elsewhere
+  on the package, not just an inline bilingual pair. Regardless of how many
+  languages appear, always take the Vietnamese version for a field when
+  it's present in frame; only take another language for that field when
+  there's no corresponding Vietnamese text in frame (annotators are
+  expected to photograph the "nhãn phụ" when present, so a field being
+  genuinely absent from the Vietnamese text — not just hard to find — is
+  the common case for falling back).
 - **Undocumented edge cases**: use best judgment and note it; if the same
   case recurs across multiple images, report it back so it can be added
   here for consistency across annotators.

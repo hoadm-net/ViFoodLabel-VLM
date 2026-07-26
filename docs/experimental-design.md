@@ -62,8 +62,10 @@ corrupted conditions (3 kinds × 3 severities).
 instances from a prior run into two identical CSVs
 (`error_sample_coder_{a,b}.csv`) with blank `error_category`/`notes` columns
 for two independent human coders. Suggested category vocabulary: diacritics,
-wrong unit, pairing error (cross-row swap), missing additive, hallucination,
-wrong value, missing field, malformed JSON.
+wrong unit, pairing error (cross-row swap), missing additive, wrong language
+(right content, wrong-language portion of a multi-language label — see
+[annotation-guidelines.md](annotation-guidelines.md)), hallucination, wrong
+value, missing field, malformed JSON.
 
 `scripts/05_score_error_taxonomy.py` computes Cohen's κ between the two
 completed sheets, writes a per-row agreement table (agreed rows get a final
