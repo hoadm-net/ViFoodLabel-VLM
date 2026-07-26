@@ -14,7 +14,14 @@ from vifoodlabel.cli.common import (
 from vifoodlabel.config import SCORED_RESULTS_DIR
 from vifoodlabel.cost import estimate_run_cost
 from vifoodlabel.io_utils import labeled_only
-from vifoodlabel.metrics import image_level_summary, model_summary, scores_to_dataframe
+from vifoodlabel.metrics import (
+    FIELD_SCORE_KEY,
+    IMAGE_SCORE_KEY,
+    image_level_summary,
+    model_summary,
+    scores_to_dataframe,
+    upsert_scored_csv,
+)
 from vifoodlabel.prompts import CANONICAL_CONDITION, CANONICAL_LANGUAGE, CANONICAL_SHOT, build_instruction
 from vifoodlabel.runner import RunItem, run_and_score
 
@@ -55,9 +62,8 @@ def run(args: argparse.Namespace) -> None:
 
     field_df = scores_to_dataframe(scores)
     image_df = image_level_summary(scores)
-    SCORED_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    field_df.to_csv(SCORED_RESULTS_DIR / "tier1_field_scores.csv", index=False)
-    image_df.to_csv(SCORED_RESULTS_DIR / "tier1_image_scores.csv", index=False)
+    upsert_scored_csv(field_df, SCORED_RESULTS_DIR / "tier1_field_scores.csv", FIELD_SCORE_KEY)
+    merged_image_df = upsert_scored_csv(image_df, SCORED_RESULTS_DIR / "tier1_image_scores.csv", IMAGE_SCORE_KEY)
 
-    print("\nPer-model summary:")
-    print(model_summary(image_df).to_string(index=False))
+    print("\nPer-model summary (all models scored so far, not just this run):")
+    print(model_summary(merged_image_df).to_string(index=False))

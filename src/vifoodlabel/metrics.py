@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 import pandas as pd
 
@@ -15,6 +16,9 @@ from vifoodlabel.matching import (
     match_scalar,
 )
 from vifoodlabel.schema import LIST_FIELDS, SCALAR_FIELDS, LabelSchema
+
+FIELD_SCORE_KEY = ["image_id", "model_key", "condition", "field"]
+IMAGE_SCORE_KEY = ["image_id", "model_key", "condition"]
 
 
 @dataclass
@@ -130,6 +134,29 @@ def image_level_summary(scores: list[ImageScore]) -> pd.DataFrame:
         "api_error": s.api_error, "n_structural_issues": len(s.structural_issues),
     } for s in scores]
     return pd.DataFrame(rows)
+
+
+def upsert_scored_csv(df: pd.DataFrame, path: Path, key_columns: list[str]) -> pd.DataFrame:
+    """Merge `df` into the CSV at `path` (if it exists already), keyed by
+    `key_columns` -- new rows overwrite stale ones with the same key,
+    everything else already on disk is preserved. Writes the merged result.
+
+    This is what makes it safe to run a subcommand against a subset of
+    models/images without silently dropping other models' previously
+    scored rows (a plain overwrite would do that on every re-run).
+    """
+    if path.exists():
+        # Force key columns to str on read -- image_id ("0001") is otherwise
+        # inferred as int64 by pandas, silently dropping the leading zero
+        # and breaking key equality against the freshly-scored rows below.
+        existing = pd.read_csv(path, dtype={col: str for col in key_columns})
+        combined = pd.concat([existing, df], ignore_index=True)
+        combined = combined.drop_duplicates(subset=key_columns, keep="last")
+    else:
+        combined = df
+    path.parent.mkdir(parents=True, exist_ok=True)
+    combined.to_csv(path, index=False)
+    return combined
 
 
 def model_field_summary(field_df: pd.DataFrame) -> pd.DataFrame:
