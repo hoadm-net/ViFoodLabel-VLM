@@ -1,0 +1,74 @@
+# Model registry for ViFoodLabel-VLM benchmark.
+#
+# Three groups, motivated by the RQ "does model scale/closedness matter more
+# than domain specialization for this task?":
+#   closed_frontier          - top-tier closed models, via OpenRouter
+#   open_general              - large open-weight general VLMs, via OpenRouter
+#   document_specialized_vi    - small Vietnamese-native document/OCR VLM, self-hosted
+#
+# Prices are USD per 1M tokens, as listed on OpenRouter at the time this file
+# was written (self-hosted models are free to run, hence 0/0).
+# `slug` is the exact model id passed to the chat-completions API.
+# `base_url` / `api_key_env` are omitted for OpenRouter models (they default
+# to OPENROUTER_BASE_URL / OPENROUTER_API_KEY, see src/vifoodlabel/client.py).
+models:
+  # --- closed frontier ---------------------------------------------------
+  - key: gpt-5.4
+    slug: openai/gpt-5.4
+    display_name: "GPT-5.4 Standard"
+    group: closed_frontier
+    open_weight: false
+    price_input_per_m: 2.50
+    price_output_per_m: 15.00
+
+  - key: claude-sonnet-5
+    slug: anthropic/claude-sonnet-5
+    display_name: "Claude Sonnet 5"
+    group: closed_frontier
+    open_weight: false
+    price_input_per_m: 2.00
+    price_output_per_m: 10.00
+
+  - key: gemini-3-pro
+    slug: google/gemini-3-pro-preview
+    display_name: "Gemini 3 Pro Preview"
+    group: closed_frontier
+    open_weight: false
+    price_input_per_m: 2.00
+    price_output_per_m: 12.00
+
+  # --- open-source large VLMs ---------------------------------------------
+  - key: qwen3-vl-235b
+    slug: qwen/qwen3-vl-235b-a22b-instruct
+    display_name: "Qwen3-VL-235B-A22B-Instruct"
+    group: open_general
+    open_weight: true
+    price_input_per_m: 0.20
+    price_output_per_m: 0.88
+
+  - key: glm-4.6v
+    slug: z-ai/glm-4.6v
+    display_name: "GLM-4.6V"
+    group: open_general
+    open_weight: true
+    price_input_per_m: 0.30
+    price_output_per_m: 0.90
+
+  - key: mimo-v2.5
+    slug: xiaomi/mimo-v2.5
+    display_name: "MiMo-V2.5"
+    group: open_general
+    open_weight: true
+    price_input_per_m: 0.105
+    price_output_per_m: 0.28
+
+  # --- Vietnamese document-specialized (self-hosted via vLLM) ------------
+  - key: vintern-3b
+    slug: 5CD-AI/Vintern-3B-beta
+    display_name: "Vintern-3B-beta"
+    group: document_specialized_vi
+    open_weight: true
+    price_input_per_m: 0.0
+    price_output_per_m: 0.0
+    base_url: http://localhost:8000/v1
+    api_key_env: VINTERN_API_KEY  # optional; defaults to vLLM's "EMPTY" placeholder if unset
