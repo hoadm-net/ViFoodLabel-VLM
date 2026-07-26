@@ -37,6 +37,7 @@ def save_cached(
     cost_usd: float,
     latency_s: float,
     error: str | None,
+    finish_reason: str | None = None,
 ) -> Path:
     record = {
         "tier": tier,
@@ -50,6 +51,7 @@ def save_cached(
         "cost_usd": cost_usd,
         "latency_s": latency_s,
         "error": error,
+        "finish_reason": finish_reason,
         "cached_at": datetime.now(timezone.utc).isoformat(),
     }
     path = cache_path(tier, model, image_id, condition)

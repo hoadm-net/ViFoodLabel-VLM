@@ -9,6 +9,13 @@ Implementation: [`src/vifoodlabel/matching.py`](../src/vifoodlabel/matching.py)
 (per-field matchers) and [`src/vifoodlabel/metrics.py`](../src/vifoodlabel/metrics.py)
 (per-image scoring + aggregation).
 
+> **If you open `results/scored/tier*_*.csv` yourself** (Excel, a fresh
+> `pd.read_csv()`, R, ...): pass `dtype={"image_id": str}` (pandas) or
+> equivalent. Left unspecified, `image_id` values like `"0001"` get
+> silently read back as the integer `1`, losing the zero-padding — this
+> repo's own code always does this (see `upsert_scored_csv` in
+> `metrics.py`), but a naive read outside it won't.
+
 ## Normalization
 
 Before any comparison, text is Unicode-NFC normalized, whitespace-collapsed,

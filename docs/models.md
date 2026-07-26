@@ -14,14 +14,23 @@ put together — re-verify before relying on it, since this space moves fast.
 |---|---|---|---|
 | GPT-5.4 Standard | `openai/gpt-5.4` | 2.50 | 15.00 |
 | Claude Sonnet 5 | `anthropic/claude-sonnet-5` | 2.00 | 10.00 |
-| Gemini 3.1 Pro Preview | `google/gemini-3.1-pro-preview` | 2.00 | 12.00 |
+| Grok 4.20 | `x-ai/grok-4.20` | 1.25 | 2.50 |
 
-`google/gemini-3-pro-preview` (the original pick) was discontinued by
-Google on 2026-03-09 — OpenRouter started returning `404 No endpoints
-found` for it. Caught by `--resume`/`json_validity_rate` showing 0% for
-this model on the first real test run; see the git history of this file
-for a live example of exactly the kind of drift the note above warns
-about.
+Two swaps happened here already, both caught by re-verifying live rather
+than trusting an earlier pick — see git history of this file for the
+concrete examples:
+
+- `google/gemini-3-pro-preview` (the original pick) was discontinued by
+  Google on 2026-03-09 — OpenRouter started returning `404 No endpoints
+  found` for it. Caught by `json_validity_rate` showing 0% for this model
+  on the first real test run. Replaced with `google/gemini-3.1-pro-preview`.
+- Every current Gemini Pro/Flash-tier model tried afterward
+  (`gemini-3.1-pro-preview`, `gemini-2.5-pro`, `gemini-3.5-flash`) rejects
+  `reasoning: {enabled: false}` with `400 Reasoning is mandatory for this
+  endpoint` — see [experimental-design.md](experimental-design.md#inference-parameters-every-call-every-tier)
+  for why every call disables reasoning. Grok 4.20 accepts it cleanly
+  (verified live) and is cheaper besides, so it replaced Gemini rather than
+  carrying a per-model exception for one model in the roster.
 
 ## Open-source large VLMs (via OpenRouter)
 

@@ -29,16 +29,20 @@ models:
     price_input_per_m: 2.00
     price_output_per_m: 10.00
 
-  # google/gemini-3-pro-preview was discontinued 2026-03-09 ("No endpoints
-  # found" on OpenRouter); gemini-3.1-pro-preview is the current live
-  # flagship (verified live against OpenRouter, same $2/$12 pricing).
-  - key: gemini-3.1-pro
-    slug: google/gemini-3.1-pro-preview
-    display_name: "Gemini 3.1 Pro Preview"
+  # Was Gemini 3.1 Pro Preview (google/gemini-3-pro-preview before that, until
+  # it was discontinued 2026-03-09). Swapped for Grok 4.20: every current
+  # Gemini Pro/Flash-tier model tested (gemini-3.1-pro-preview,
+  # gemini-2.5-pro, gemini-3.5-flash) rejects reasoning={enabled:false}
+  # with "Reasoning is mandatory for this endpoint" -- Grok 4.20 accepts it
+  # cleanly (verified live), giving all 6 OpenRouter models genuine
+  # reasoning=none instead of 5/6 plus a fallback for the odd one out.
+  - key: grok-4.20
+    slug: x-ai/grok-4.20
+    display_name: "Grok 4.20"
     group: closed_frontier
     open_weight: false
-    price_input_per_m: 2.00
-    price_output_per_m: 12.00
+    price_input_per_m: 1.25
+    price_output_per_m: 2.50
 
   # --- open-source large VLMs ---------------------------------------------
   - key: qwen3-vl-235b

@@ -16,6 +16,9 @@ Suggested categories (free text, but keep these as the shared vocabulary):
   hallucination          - content not present on the label at all
   wrong_value              - any other incorrect value/content
   missing_field               - field left empty when the label had content
+  output_truncated              - response hit the max_tokens ceiling;
+                                  missing/cut-off fields aren't the model's
+                                  choice (see structural_issues column)
   malformed_json                  - see json_valid/api_error columns
 """
 

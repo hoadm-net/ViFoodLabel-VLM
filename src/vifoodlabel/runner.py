@@ -15,7 +15,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from vifoodlabel.cache import load_cached, save_cached
-from vifoodlabel.client import VLMClient, build_client
+from vifoodlabel.client import TRUNCATION_FINISH_REASON, VLMClient, build_client
 from vifoodlabel.config import ModelSpec
 from vifoodlabel.cost import append_ledger
 from vifoodlabel.io_utils import DatasetItem, load_ground_truth
@@ -48,6 +48,7 @@ async def _run_one(client: VLMClient, tier: str, semaphore: asyncio.Semaphore, r
         tier, run_item.model, run_item.item.image_id, run_item.condition,
         content=response.content, input_tokens=response.input_tokens, output_tokens=response.output_tokens,
         cost_usd=response.cost_usd, latency_s=response.latency_s, error=response.error,
+        finish_reason=response.finish_reason,
     )
     if response.input_tokens or response.output_tokens:
         append_ledger(
@@ -100,6 +101,14 @@ def score_records(records: list[tuple[RunItem, dict]]) -> list[ImageScore]:
         api_error = record.get("error")
         extra_issues: list[str] = []
         raw_data = None
+
+        if record.get("finish_reason") == TRUNCATION_FINISH_REASON:
+            # Hit max_tokens -- content (if any) may be a cut-off prefix.
+            # json_repair can still turn that into "valid" JSON, which would
+            # otherwise silently look like the model just omitted fields
+            # rather than never finishing. Flag it either way so it's
+            # auditable instead of hidden inside a recall miss.
+            extra_issues.append("output_truncated")
 
         if content is None:
             extra_issues.append("api_error")

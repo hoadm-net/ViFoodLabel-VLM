@@ -7,6 +7,25 @@ the top of the file). Every tier shares one on-disk response cache keyed by
 are free and, where conditions coincide across tiers, later tiers reuse
 earlier tiers' API calls instead of re-purchasing them.
 
+## Inference parameters (every call, every tier)
+
+`temperature=0`, `max_tokens=16000` (`src/vifoodlabel/client.py`). Extended
+reasoning/"thinking" is explicitly disabled (`reasoning: {enabled: false}`
+via OpenRouter's unified reasoning parameter) uniformly across all 6
+OpenRouter-routed models — not applied to the self-hosted Vintern, whose
+vLLM endpoint doesn't recognize the field.
+
+This was a deliberate call, not a default left untouched: MiMo-V2.5 was
+observed defaulting to thinking-enabled and burning its entire output-token
+budget on hidden reasoning without ever emitting an answer, on 2 of 3 pilot
+images (a known OpenRouter/provider behavior for that model, not a prompt
+issue — see `git log` for `client.py` around 2026-07). Rather than leaving
+each model at whatever its provider defaults to (uncontrolled and, per the
+above, occasionally pathological) or special-casing just the broken model,
+reasoning is switched off the same way for every model, so all 7 are
+compared on their direct zero-shot answer under identical inference
+parameters.
+
 ## Tier 1 — main benchmark
 
 `uv run main.py benchmark` — the full dataset × all 7 models, canonical
@@ -66,7 +85,9 @@ for two independent human coders. Suggested category vocabulary: diacritics,
 wrong unit, pairing error (cross-row swap), missing additive, wrong language
 (right content, wrong-language portion of a multi-language label — see
 [annotation-guidelines.md](annotation-guidelines.md)), hallucination, wrong
-value, missing field, malformed JSON.
+value, missing field, output truncated (hit `max_tokens`, not a real
+extraction failure — see `client.py`'s `finish_reason` tracking), malformed
+JSON.
 
 `uv run main.py score-taxonomy` computes Cohen's κ between the two completed
 sheets, writes a per-row agreement table (agreed rows get a final category;
