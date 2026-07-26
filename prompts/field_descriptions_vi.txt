@@ -1,0 +1,9 @@
+- product_name (chuỗi): tên đầy đủ của sản phẩm như in trên nhãn.
+- ingredient (mảng chuỗi): danh sách thành phần, mỗi phần tử là một dòng/mục thành phần (giữ nguyên tỉ lệ % nếu có ghi trên nhãn).
+- additive (mảng chuỗi): danh sách phụ gia thực phẩm được liệt kê riêng trên nhãn (chất bảo quản, chất tạo màu, chất nhũ hóa, hương liệu...).
+- warning (mảng chuỗi): các cảnh báo/khuyến cáo an toàn thực phẩm in trên nhãn (dị ứng, bảo quản, đối tượng không nên dùng...).
+- nutrition (mảng đối tượng {name, value}): bảng thông tin dinh dưỡng, mỗi phần tử gồm tên chỉ tiêu (name) và giá trị kèm đơn vị (value). PHẢI ghép đúng tên với giá trị tương ứng của nó trên bảng, kể cả khi bảng có song ngữ Việt-Anh hoặc nhiều dòng.
+- origin (chuỗi): nước/nơi sản xuất hoặc xuất xứ.
+- net_weight (chuỗi): khối lượng tịnh/thể tích thực.
+- mfg_date (chuỗi): ngày sản xuất, hoặc hướng dẫn cách xem ngày sản xuất nếu nhãn không in trực tiếp ngày cụ thể.
+- expiry_date (chuỗi): hạn sử dụng, hoặc hướng dẫn cách xem hạn sử dụng nếu nhãn không in trực tiếp ngày cụ thể.

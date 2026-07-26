@@ -30,7 +30,9 @@ one-shot conditions) or require sourcing a 601st dedicated image. A
 synthetic textual example demonstrates the JSON format and the bilingual
 nutrition name/value pairing convention without touching the evaluation set
 at all — every one of the 600 images stays scorable under every condition.
-See `prompts.py` for the exact templates.
+The exact wording lives in [`prompts/`](../prompts/) (plain `.txt` files,
+assembled by `src/vifoodlabel/prompts.py`) — review or cite that directory
+directly rather than the code.
 
 ## Tier 3 — perturbation robustness
 

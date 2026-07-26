@@ -1,0 +1,8 @@
+
+
+Illustrative example of the expected output format (this is a fictional product unrelated to the actual image below, shown only to demonstrate the JSON structure and nutrition name-value pairing):
+Suppose the label reads: "Co Ba Wax Coconut Candy, Ingredients: Wax coconut (60%), Sugar, Condensed milk. Additives: Potassium sorbate preservative (E202). Warning: Contains milk. Nutrition facts (per 100g) - Energy: 420kcal, Fat: 18g, Sodium: 45mg. Origin: Vietnam. Net weight: 200g. MFG: 01/01/2026. EXP: 01/01/2027."
+=>
+{"product_name": "Co Ba Wax Coconut Candy", "ingredient": ["Wax coconut (60%)", "Sugar", "Condensed milk"], "additive": ["Potassium sorbate preservative (E202)"], "warning": ["Contains milk."], "nutrition": [{"name": "Energy", "value": "420 kcal"}, {"name": "Fat", "value": "18 g"}, {"name": "Sodium", "value": "45 mg"}], "origin": "Vietnam", "net_weight": "200g", "mfg_date": "01/01/2026", "expiry_date": "01/01/2027"}
+
+Now extract the information from the actual label image below, following the same format.

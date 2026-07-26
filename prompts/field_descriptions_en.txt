@@ -1,0 +1,9 @@
+- product_name (string): the full product name as printed on the label.
+- ingredient (array of strings): the ingredient list, one entry per ingredient line/item (keep the percentage if printed).
+- additive (array of strings): food additives listed separately on the label (preservatives, colorants, emulsifiers, flavorings...).
+- warning (array of strings): safety warnings/advisories printed on the label (allergens, storage instructions, who should avoid it...).
+- nutrition (array of {name, value} objects): the nutrition facts table; each entry has the nutrient name (name) and its value with unit (value). You MUST pair each name with its correct corresponding value from the table, even when the table is bilingual Vietnamese-English or spans multiple rows.
+- origin (string): country/place of manufacture or origin.
+- net_weight (string): net weight/volume.
+- mfg_date (string): manufacturing date, or instructions for finding it if not printed directly.
+- expiry_date (string): expiry date, or instructions for finding it if not printed directly.

@@ -1,0 +1,8 @@
+
+
+Ví dụ minh họa định dạng đầu ra mong muốn (đây là sản phẩm hư cấu, không liên quan tới ảnh thực tế bên dưới, chỉ để minh họa cấu trúc JSON và cách ghép cặp tên-giá trị dinh dưỡng):
+Giả sử nhãn ghi: "Kẹo dừa sáp Cô Ba, Thành phần: Dừa sáp (60%), Đường, Sữa đặc. Phụ gia: Chất bảo quản Kali sorbat (E202). Cảnh báo: Có chứa sữa. Bảng dinh dưỡng (trên 100g) - Năng lượng/Energy: 420kcal, Chất béo/Fat: 18g, Natri/Sodium: 45mg. Xuất xứ: Việt Nam. Khối lượng tịnh: 200g. NSX: 01/01/2026. HSD: 01/01/2027."
+=>
+{"product_name": "Kẹo dừa sáp Cô Ba", "ingredient": ["Dừa sáp (60%)", "Đường", "Sữa đặc"], "additive": ["Chất bảo quản Kali sorbat (E202)"], "warning": ["Có chứa sữa."], "nutrition": [{"name": "Năng lượng", "value": "420 kcal"}, {"name": "Chất béo", "value": "18 g"}, {"name": "Natri", "value": "45 mg"}], "origin": "Việt Nam", "net_weight": "200g", "mfg_date": "01/01/2026", "expiry_date": "01/01/2027"}
+
+Bây giờ hãy trích xuất thông tin từ ảnh nhãn thực tế bên dưới theo đúng định dạng trên.
