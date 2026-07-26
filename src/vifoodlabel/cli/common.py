@@ -11,6 +11,7 @@ touch the network, so they don't get flags that wouldn't do anything.
 from __future__ import annotations
 
 import argparse
+import random
 
 from vifoodlabel.cache import load_cached
 from vifoodlabel.config import ModelSpec, resolve_models
@@ -18,6 +19,15 @@ from vifoodlabel.io_utils import DatasetItem, dataset_index, list_image_ids
 from vifoodlabel.runner import DEFAULT_CONCURRENCY_PER_MODEL
 
 ID_WIDTH = 4  # matches data/images/NNNN.jpeg
+
+# ~20% of the 600-image dataset. Used as the *default* scope for the two
+# ablation tiers (prompt-sensitivity, perturbation) whose cost multiplies
+# across several conditions per image -- unlike Tier 1 (the main benchmark,
+# where the headline per-model numbers want the full dataset), these are
+# fundamentally paired comparisons across conditions on the same images, so
+# a subset gives adequate power without paying for 600 images x N conditions.
+DEFAULT_SUBSET_SIZE = 120
+DEFAULT_SUBSET_SEED = 42
 
 
 def add_dataset_args(parser: argparse.ArgumentParser) -> None:
@@ -54,6 +64,34 @@ def resolve_image_ids(args: argparse.Namespace) -> list[str] | None:
 
 def resolve_dataset(args: argparse.Namespace) -> list[DatasetItem]:
     items = dataset_index(resolve_image_ids(args))
+    if args.limit is not None:
+        items = items[: args.limit]
+    return items
+
+
+def add_subset_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--subset-size", type=int, default=DEFAULT_SUBSET_SIZE,
+        help=f"Stratified random subset size used when no --images/--start-id/--end-id is given (default: {DEFAULT_SUBSET_SIZE}, ~20%% of 600)",
+    )
+    parser.add_argument("--seed", type=int, default=DEFAULT_SUBSET_SEED, help="Subset selection seed")
+
+
+def select_subset(subset_size: int, seed: int) -> list[str]:
+    all_ids = list_image_ids()
+    if subset_size >= len(all_ids):
+        return all_ids
+    return sorted(random.Random(seed).sample(all_ids, subset_size))
+
+
+def resolve_dataset_with_subset_default(args: argparse.Namespace) -> list[DatasetItem]:
+    """Like `resolve_dataset`, but falls back to a stratified random subset
+    (not the full dataset) when no explicit --images/--start-id/--end-id is
+    given. For the two ablation tiers -- see `add_subset_args`/`DEFAULT_SUBSET_SIZE`."""
+    image_ids = resolve_image_ids(args)
+    if image_ids is None:
+        image_ids = select_subset(args.subset_size, args.seed)
+    items = dataset_index(image_ids)
     if args.limit is not None:
         items = items[: args.limit]
     return items

@@ -1,4 +1,6 @@
-"""Tier 2 -- prompt sensitivity ablation: {vi,en} x {zero,one}-shot.
+"""Tier 2 -- prompt sensitivity ablation: {vi,en} x {zero,one}-shot, on a
+stratified subset of the dataset (default 120 images, ~20% of 600 -- see
+cli/common.py's add_subset_args).
 
 Uses the same cache namespace ("benchmark") as Tier 1, keyed by condition
 (vi_zero/vi_one/en_zero/en_one) -- so the vi_zero leg transparently reuses
@@ -12,9 +14,10 @@ import argparse
 from vifoodlabel.cli.common import (
     add_dataset_args,
     add_execution_args,
+    add_subset_args,
     print_dry_run_scope,
     print_resume_status,
-    resolve_dataset,
+    resolve_dataset_with_subset_default,
     resolve_selected_models,
 )
 from vifoodlabel.config import SCORED_RESULTS_DIR
@@ -36,11 +39,12 @@ TIER = "benchmark"  # shared cache namespace with Tier 1, see module docstring
 def add_arguments(parser: argparse.ArgumentParser) -> None:
     add_dataset_args(parser)
     add_execution_args(parser)
+    add_subset_args(parser)
 
 
 def run(args: argparse.Namespace) -> None:
     models = resolve_selected_models(args)
-    items = resolve_dataset(args)
+    items = resolve_dataset_with_subset_default(args)
     n_labeled = len(labeled_only(items))
     all_conditions = [condition_name(lang, shot) for lang, shot in ALL_PROMPT_CONDITIONS]
 

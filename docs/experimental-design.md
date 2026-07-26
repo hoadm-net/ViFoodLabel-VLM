@@ -37,9 +37,14 @@ model, with bootstrap CI and pairwise McNemar significance (see
 ## Tier 2 — prompt sensitivity
 
 `uv run main.py prompt-sensitivity` — 2×2 ablation: instruction language
-(`vi`/`en`) × shot count (`zero`/`one`). Uses the *same* cache namespace as
-Tier 1 (`tier="benchmark"`), so the `vi_zero` leg is never re-run — only the
-other 3 conditions cost anything.
+(`vi`/`en`) × shot count (`zero`/`one`), on the same stratified random
+subset mechanism as Tier 3 (default 120 images, ~20% of 600 — see
+`cli/common.py`'s `add_subset_args`/`DEFAULT_SUBSET_SIZE`). Like Tier 3,
+this is a paired per-image comparison across conditions rather than the
+main benchmark's headline per-model claim, so a subset gives adequate
+power without paying for 600 images × 4 conditions. Uses the *same* cache
+namespace as Tier 1 (`tier="benchmark"`), so the `vi_zero` leg is never
+re-run — only the other 3 conditions cost anything.
 
 The one-shot exemplar is a **synthetic, text-only illustrative example** — a
 fictional product with made-up values, described in the prompt text, not

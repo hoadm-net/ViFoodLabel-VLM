@@ -1,25 +1,26 @@
 """Tier 3 -- perturbation robustness: blur/glare/rotation x 3 severities, on a
-stratified subset of the dataset (default 120 images) using the canonical
-zero-shot VI prompt. The "clean" baseline for the degradation curve is NOT
-re-run here -- it's Tier 1's already-cached result for the same image ids
-(see `report`), so this only ever pays for the 9 corrupted conditions.
+stratified subset of the dataset (default 120 images, ~20% of 600 -- see
+cli/common.py's add_subset_args) using the canonical zero-shot VI prompt.
+The "clean" baseline for the degradation curve is NOT re-run here -- it's
+Tier 1's already-cached result for the same image ids (see `report`), so
+this only ever pays for the 9 corrupted conditions.
 """
 
 from __future__ import annotations
 
 import argparse
-import random
 
 from vifoodlabel.cli.common import (
     add_dataset_args,
     add_execution_args,
+    add_subset_args,
     print_dry_run_scope,
     print_resume_status,
-    resolve_image_ids,
+    resolve_dataset_with_subset_default,
     resolve_selected_models,
 )
 from vifoodlabel.config import SCORED_RESULTS_DIR
-from vifoodlabel.io_utils import dataset_index, labeled_only, list_image_ids
+from vifoodlabel.io_utils import labeled_only
 from vifoodlabel.metrics import (
     FIELD_SCORE_KEY,
     IMAGE_SCORE_KEY,
@@ -33,32 +34,17 @@ from vifoodlabel.prompts import CANONICAL_LANGUAGE, CANONICAL_SHOT, build_instru
 from vifoodlabel.runner import RunItem, run_and_score
 
 TIER = "perturbation"
-DEFAULT_SUBSET_SIZE = 120
-DEFAULT_SEED = 42
-
-
-def select_subset(subset_size: int, seed: int) -> list[str]:
-    all_ids = list_image_ids()
-    if subset_size >= len(all_ids):
-        return all_ids
-    return sorted(random.Random(seed).sample(all_ids, subset_size))
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:
     add_dataset_args(parser)
     add_execution_args(parser)
-    parser.add_argument("--subset-size", type=int, default=DEFAULT_SUBSET_SIZE, help="Stratified subset size (ignored if --images/--start-id/--end-id given)")
-    parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="Subset selection seed")
+    add_subset_args(parser)
 
 
 def run(args: argparse.Namespace) -> None:
     models = resolve_selected_models(args)
-    image_ids = resolve_image_ids(args)
-    if image_ids is None:
-        image_ids = select_subset(args.subset_size, args.seed)
-    if args.limit is not None:
-        image_ids = image_ids[: args.limit]
-    items = dataset_index(image_ids)
+    items = resolve_dataset_with_subset_default(args)
     conditions = all_perturbation_conditions()
     condition_names = [perturbation_condition_name(kind, severity) for kind, severity in conditions]
 
