@@ -1,15 +1,8 @@
-#!/usr/bin/env python3
-"""Tier 3 — perturbation robustness: blur/glare/rotation x 3 severities, on a
+"""Tier 3 -- perturbation robustness: blur/glare/rotation x 3 severities, on a
 stratified subset of the dataset (default 120 images) using the canonical
 zero-shot VI prompt. The "clean" baseline for the degradation curve is NOT
-re-run here — it's Tier 1's already-cached result for the same image ids
-(see scripts/aggregate_report.py), so this script only ever pays for the 9
-corrupted conditions.
-
-Usage:
-    uv run scripts/03_run_perturbation.py --dry-run
-    uv run scripts/03_run_perturbation.py --images 0001 --models mimo-v2.5
-    uv run scripts/03_run_perturbation.py --subset-size 120
+re-run here -- it's Tier 1's already-cached result for the same image ids
+(see `report`), so this only ever pays for the 9 corrupted conditions.
 """
 
 from __future__ import annotations
@@ -17,8 +10,13 @@ from __future__ import annotations
 import argparse
 import random
 
-from _common import add_common_args, resolve_selected_models
-
+from vifoodlabel.cli.common import (
+    add_dataset_args,
+    add_execution_args,
+    print_resume_status,
+    resolve_image_ids,
+    resolve_selected_models,
+)
 from vifoodlabel.config import SCORED_RESULTS_DIR
 from vifoodlabel.cost import estimate_run_cost
 from vifoodlabel.io_utils import dataset_index, labeled_only, list_image_ids
@@ -39,26 +37,29 @@ def select_subset(subset_size: int, seed: int) -> list[str]:
     return sorted(random.Random(seed).sample(all_ids, subset_size))
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    add_common_args(parser)
-    parser.add_argument("--subset-size", type=int, default=DEFAULT_SUBSET_SIZE, help="Stratified subset size (ignored if --images given)")
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    add_dataset_args(parser)
+    add_execution_args(parser)
+    parser.add_argument("--subset-size", type=int, default=DEFAULT_SUBSET_SIZE, help="Stratified subset size (ignored if --images/--start-id/--end-id given)")
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="Subset selection seed")
-    args = parser.parse_args()
 
+
+def run(args: argparse.Namespace) -> None:
     models = resolve_selected_models(args)
-    if args.images:
-        image_ids = args.images
-    else:
+    image_ids = resolve_image_ids(args)
+    if image_ids is None:
         image_ids = select_subset(args.subset_size, args.seed)
     if args.limit is not None:
         image_ids = image_ids[: args.limit]
     items = dataset_index(image_ids)
     conditions = all_perturbation_conditions()
+    condition_names = [perturbation_condition_name(kind, severity) for kind, severity in conditions]
 
     print(f"Tier 3 perturbation: {len(items)} images x {len(models)} models x {len(conditions)} conditions")
     n_labeled = len(labeled_only(items))
     print(f"  {n_labeled}/{len(items)} images currently have ground truth (only those will be scored)")
+    if args.resume:
+        print_resume_status(TIER, models, items, condition_names)
 
     instruction = build_instruction(CANONICAL_LANGUAGE, CANONICAL_SHOT)
 
@@ -89,7 +90,3 @@ def main() -> None:
 
     print("\nPer-model x condition summary:")
     print(model_summary(image_df).sort_values(["model_key", "condition"]).to_string(index=False))
-
-
-if __name__ == "__main__":
-    main()

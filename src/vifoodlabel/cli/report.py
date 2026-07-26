@@ -1,19 +1,13 @@
-#!/usr/bin/env python3
 """Combine whatever tiers have been run into summary tables + the degradation curve figure.
 
-Tier 1 (results/scored/tier1_*.csv) is required; Tier 2/3 outputs are used if present,
-skipped with a message otherwise. Safe to re-run at any time as more scored data appears.
-
-Usage:
-    uv run scripts/aggregate_report.py
+Tier 1 (results/scored/tier1_*.csv) is required for the fullest report;
+Tier 2/3 outputs are used if present, skipped with a message otherwise. Safe
+to re-run at any time as more scored data appears.
 """
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+import argparse
 
 import pandas as pd
 
@@ -21,6 +15,10 @@ from vifoodlabel.config import FIGURES_DIR, SCORED_RESULTS_DIR
 from vifoodlabel.metrics import model_field_summary, model_summary
 from vifoodlabel.prompts import CANONICAL_CONDITION
 from vifoodlabel.stats import bootstrap_ci_table, mcnemar_pairwise
+
+
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    pass
 
 
 def _load(name: str) -> pd.DataFrame | None:
@@ -36,7 +34,7 @@ def report_tier1() -> pd.DataFrame | None:
     field_df = _load("tier1_field_scores.csv")
     image_df = _load("tier1_image_scores.csv")
     if field_df is None or image_df is None:
-        print("Run scripts/01_run_benchmark.py first.")
+        print("Run 'main.py benchmark' first.")
         return None
 
     print("\nPer-model summary:")
@@ -83,7 +81,7 @@ def report_tier2() -> None:
     print("\n=== Tier 2: prompt sensitivity ===")
     image_df = _load("tier2_image_scores.csv")
     if image_df is None:
-        print("Run scripts/02_run_prompt_sensitivity.py first.")
+        print("Run 'main.py prompt-sensitivity' first.")
         return
     summary = model_summary(image_df)
     print(summary.sort_values(["model_key", "condition"]).to_string(index=False))
@@ -94,7 +92,7 @@ def report_tier3(tier1_image_df: pd.DataFrame | None) -> None:
     print("\n=== Tier 3: perturbation robustness ===")
     image_df = _load("tier3_image_scores.csv")
     if image_df is None:
-        print("Run scripts/03_run_perturbation.py first.")
+        print("Run 'main.py perturbation' first.")
         return
 
     image_df = image_df.copy()
@@ -146,11 +144,7 @@ def report_tier3(tier1_image_df: pd.DataFrame | None) -> None:
         print("matplotlib not available — skipped figure generation.")
 
 
-def main() -> None:
+def run(args: argparse.Namespace) -> None:
     tier1_image_df = report_tier1()
     report_tier2()
     report_tier3(tier1_image_df)
-
-
-if __name__ == "__main__":
-    main()

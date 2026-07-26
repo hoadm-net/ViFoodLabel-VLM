@@ -14,17 +14,30 @@ roster) before touching scoring logic or experiment design.
 ## Conventions
 
 - Package layout: `src/vifoodlabel/`, managed with `uv` (not pip/poetry/conda).
-  Install with `uv sync`; run scripts with `uv run scripts/<name>.py`.
-- One script per experimental tier in `scripts/` (`01`–`05`, numbered by
-  tier, plus `aggregate_report.py`). Each is self-contained and documented
-  in its own module docstring.
+  Install with `uv sync`.
+- **Single CLI entry point: `main.py` at repo root**, via subcommands
+  (`benchmark`, `prompt-sensitivity`, `perturbation`, `error-sample`,
+  `score-taxonomy`, `report` — one per experimental tier). Run with
+  `uv run main.py <subcommand> --help`.
+- Each subcommand's argument parsing + orchestration lives in its own module
+  under `src/vifoodlabel/cli/` (`benchmark.py`, `prompt_sensitivity.py`,
+  etc.) — `main.py` only dispatches. Keep it that way: a subcommand module
+  should only ever import from `vifoodlabel.cli.common` and the core
+  `vifoodlabel.*` library modules, never from another `cli/` module. This is
+  what lets you fix/extend one subcommand without having to re-test the
+  others — they don't share any mutable state or code path beyond the
+  already-tested core library.
+- The self-hosted Vintern-3B-beta model is the one exception: it's set up
+  via `scripts/serve_vintern.sh` on a separate GPU machine, not through
+  `main.py`. Once served, it's picked up automatically by every subcommand
+  through `configs/models.yaml` like any other model.
 - The model registry (slugs, pricing, endpoints, group) lives in
   `configs/models.yaml`, loaded via `src/vifoodlabel/config.py::ModelSpec`.
   Never hardcode a model slug or price anywhere else.
 - Every API call is cached to disk (`results/raw/`, gitignored) keyed by
   `(tier, model, image_id, condition)`, written *before* scoring — this is
-  what makes every script resumable and idempotent. Preserve this pattern in
-  any new script; don't call the API without going through
+  what makes every subcommand resumable and idempotent. Preserve this
+  pattern in any new subcommand; don't call the API without going through
   `src/vifoodlabel/runner.py`.
 
 ## Hard rules
@@ -45,4 +58,6 @@ roster) before touching scoring logic or experiment design.
   `configs/models.yaml`.
 - **Prefer `--dry-run` before any real run against paid models**, especially
   before changing prompt text (longer prompts = more input tokens across
-  every model) or widening `--images`/removing `--limit`.
+  every model) or widening `--images`/`--start-id`/`--end-id`/removing
+  `--limit`. `--resume` (prints cached vs. remaining count) is cheap to run
+  first too.

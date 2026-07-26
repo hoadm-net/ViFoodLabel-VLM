@@ -1,14 +1,15 @@
 # Experimental design
 
-Four tiers, run in order (each script is documented at the top of its file
-in `scripts/`). Every tier shares one on-disk response cache keyed by
+Four tiers, run in order via `main.py`'s subcommands (each subcommand's
+logic lives in its own module under `src/vifoodlabel/cli/`, documented at
+the top of the file). Every tier shares one on-disk response cache keyed by
 `(tier, model, image_id, condition)` (`src/vifoodlabel/cache.py`), so re-runs
 are free and, where conditions coincide across tiers, later tiers reuse
 earlier tiers' API calls instead of re-purchasing them.
 
 ## Tier 1 — main benchmark
 
-`scripts/01_run_benchmark.py` — the full dataset × all 7 models, canonical
+`uv run main.py benchmark` — the full dataset × all 7 models, canonical
 condition (`vi_zero`: Vietnamese instructions, zero-shot, clean image).
 Produces the headline numbers: field-level F1 and pairing accuracy per
 model, with bootstrap CI and pairwise McNemar significance (see
@@ -16,7 +17,7 @@ model, with bootstrap CI and pairwise McNemar significance (see
 
 ## Tier 2 — prompt sensitivity
 
-`scripts/02_run_prompt_sensitivity.py` — 2×2 ablation: instruction language
+`uv run main.py prompt-sensitivity` — 2×2 ablation: instruction language
 (`vi`/`en`) × shot count (`zero`/`one`). Uses the *same* cache namespace as
 Tier 1 (`tier="benchmark"`), so the `vi_zero` leg is never re-run — only the
 other 3 conditions cost anything.
@@ -36,7 +37,7 @@ directly rather than the code.
 
 ## Tier 3 — perturbation robustness
 
-`scripts/03_run_perturbation.py` — synthetic corruptions applied to a
+`uv run main.py perturbation` — synthetic corruptions applied to a
 stratified random subset (default 120 images, seeded) of otherwise-clean
 photos, in place of collecting real hard-to-read photos:
 
@@ -52,13 +53,13 @@ against having enough images per condition for a meaningful degradation
 curve.
 
 The "clean" (severity-0) baseline for the degradation curve is **not**
-re-run under this tier — `aggregate_report.py` pulls Tier 1's already-cached
-`vi_zero` results for the same image ids, so Tier 3 only ever pays for the 9
-corrupted conditions (3 kinds × 3 severities).
+re-run under this tier — `report` pulls Tier 1's already-cached `vi_zero`
+results for the same image ids, so Tier 3 only ever pays for the 9 corrupted
+conditions (3 kinds × 3 severities).
 
 ## Tier 4 — error taxonomy
 
-`scripts/04_export_error_sample.py` samples incorrect (image, model, field)
+`uv run main.py error-sample` samples incorrect (image, model, field)
 instances from a prior run into two identical CSVs
 (`error_sample_coder_{a,b}.csv`) with blank `error_category`/`notes` columns
 for two independent human coders. Suggested category vocabulary: diacritics,
@@ -67,15 +68,14 @@ wrong unit, pairing error (cross-row swap), missing additive, wrong language
 [annotation-guidelines.md](annotation-guidelines.md)), hallucination, wrong
 value, missing field, malformed JSON.
 
-`scripts/05_score_error_taxonomy.py` computes Cohen's κ between the two
-completed sheets, writes a per-row agreement table (agreed rows get a final
-category; disagreements are flagged `NEEDS_ADJUDICATION` for manual
-resolution), and a preliminary category-distribution table over the agreed
-rows.
+`uv run main.py score-taxonomy` computes Cohen's κ between the two completed
+sheets, writes a per-row agreement table (agreed rows get a final category;
+disagreements are flagged `NEEDS_ADJUDICATION` for manual resolution), and a
+preliminary category-distribution table over the agreed rows.
 
 ## Combining results
 
-`scripts/aggregate_report.py` reads whatever tiers have been run so far
+`uv run main.py report` reads whatever tiers have been run so far
 (gracefully skipping missing ones) and produces the summary tables —
 per-model/condition F1 and pairing accuracy, bootstrap CIs, McNemar tables,
 and the Tier-3 degradation-curve figure.

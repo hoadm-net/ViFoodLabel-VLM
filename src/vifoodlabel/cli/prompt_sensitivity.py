@@ -1,21 +1,21 @@
-#!/usr/bin/env python3
-"""Tier 2 — prompt sensitivity ablation: {vi,en} x {zero,one}-shot.
+"""Tier 2 -- prompt sensitivity ablation: {vi,en} x {zero,one}-shot.
 
 Uses the same cache namespace ("benchmark") as Tier 1, keyed by condition
-(vi_zero/vi_one/en_zero/en_one) — so the vi_zero leg transparently reuses
+(vi_zero/vi_one/en_zero/en_one) -- so the vi_zero leg transparently reuses
 Tier 1's results instead of re-purchasing them from the API.
-
-Usage:
-    uv run scripts/02_run_prompt_sensitivity.py --dry-run
-    uv run scripts/02_run_prompt_sensitivity.py --images 0001 --models mimo-v2.5
 """
 
 from __future__ import annotations
 
 import argparse
 
-from _common import add_common_args, resolve_dataset, resolve_selected_models
-
+from vifoodlabel.cli.common import (
+    add_dataset_args,
+    add_execution_args,
+    print_resume_status,
+    resolve_dataset,
+    resolve_selected_models,
+)
 from vifoodlabel.config import SCORED_RESULTS_DIR
 from vifoodlabel.cost import estimate_run_cost
 from vifoodlabel.io_utils import labeled_only
@@ -26,17 +26,21 @@ from vifoodlabel.runner import RunItem, run_and_score
 TIER = "benchmark"  # shared cache namespace with Tier 1, see module docstring
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    add_common_args(parser)
-    args = parser.parse_args()
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    add_dataset_args(parser)
+    add_execution_args(parser)
 
+
+def run(args: argparse.Namespace) -> None:
     models = resolve_selected_models(args)
     items = resolve_dataset(args)
     n_labeled = len(labeled_only(items))
+    all_conditions = [condition_name(lang, shot) for lang, shot in ALL_PROMPT_CONDITIONS]
 
     print(f"Tier 2 prompt sensitivity: {len(items)} images x {len(models)} models x {len(ALL_PROMPT_CONDITIONS)} conditions")
     print(f"  {n_labeled}/{len(items)} images currently have ground truth (only those will be scored)")
+    if args.resume:
+        print_resume_status(TIER, models, items, all_conditions)
 
     if args.dry_run:
         for language, shot in ALL_PROMPT_CONDITIONS:
@@ -69,7 +73,3 @@ def main() -> None:
 
     print("\nPer-model x condition summary:")
     print(model_summary(image_df).sort_values(["model_key", "condition"]).to_string(index=False))
-
-
-if __name__ == "__main__":
-    main()

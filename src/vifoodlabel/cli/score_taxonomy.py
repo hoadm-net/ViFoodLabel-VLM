@@ -1,21 +1,14 @@
-#!/usr/bin/env python3
-"""Tier 4b — Cohen's kappa + agreement report from two completed coding sheets.
+"""Tier 4b -- Cohen's kappa + agreement report from two completed coding sheets.
 
-Run 04_export_error_sample.py first, have two people independently fill in
-the `error_category` column of error_sample_coder_a.csv and _coder_b.csv,
-then run this.
-
-Usage:
-    uv run scripts/05_score_error_taxonomy.py
+Run `error-sample` first, have two people independently fill in the
+`error_category` column of error_sample_coder_a.csv and _coder_b.csv, then
+run this.
 """
 
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 import pandas as pd
 from sklearn.metrics import cohen_kappa_score
@@ -25,15 +18,15 @@ from vifoodlabel.config import SCORED_RESULTS_DIR
 KEY_COLUMNS = ["image_id", "model_key", "condition", "field"]
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
+def add_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--coder-a", default=str(SCORED_RESULTS_DIR / "error_sample_coder_a.csv"))
     parser.add_argument("--coder-b", default=str(SCORED_RESULTS_DIR / "error_sample_coder_b.csv"))
-    args = parser.parse_args()
 
+
+def run(args: argparse.Namespace) -> None:
     path_a, path_b = Path(args.coder_a), Path(args.coder_b)
     if not path_a.exists() or not path_b.exists():
-        print(f"Missing coding sheet(s): {path_a} / {path_b}. Run 04_export_error_sample.py first.")
+        print(f"Missing coding sheet(s): {path_a} / {path_b}. Run 'main.py error-sample' first.")
         return
 
     df_a = pd.read_csv(path_a)
@@ -80,7 +73,3 @@ def main() -> None:
     distribution.to_csv(distribution_path, index=False)
     print(f"Wrote preliminary category distribution (agreed rows only) to {distribution_path}")
     print(f"\n{len(coded) - len(agreed_only)} rows need manual adjudication (see NEEDS_ADJUDICATION rows in {agreement_path.name}).")
-
-
-if __name__ == "__main__":
-    main()

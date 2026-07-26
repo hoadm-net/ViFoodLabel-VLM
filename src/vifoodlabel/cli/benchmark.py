@@ -1,18 +1,16 @@
-#!/usr/bin/env python3
-"""Tier 1 — main benchmark: full dataset x all models, canonical zero-shot VI prompt, clean images.
-
-Usage:
-    uv run scripts/01_run_benchmark.py --dry-run
-    uv run scripts/01_run_benchmark.py --images 0001 --models mimo-v2.5
-    uv run scripts/01_run_benchmark.py                      # full run, all models, all images
-"""
+"""Tier 1 -- main benchmark: full dataset x all models, canonical zero-shot VI prompt, clean images."""
 
 from __future__ import annotations
 
 import argparse
 
-from _common import add_common_args, resolve_dataset, resolve_selected_models
-
+from vifoodlabel.cli.common import (
+    add_dataset_args,
+    add_execution_args,
+    print_resume_status,
+    resolve_dataset,
+    resolve_selected_models,
+)
 from vifoodlabel.config import SCORED_RESULTS_DIR
 from vifoodlabel.cost import estimate_run_cost
 from vifoodlabel.io_utils import labeled_only
@@ -23,11 +21,12 @@ from vifoodlabel.runner import RunItem, run_and_score
 TIER = "benchmark"
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    add_common_args(parser)
-    args = parser.parse_args()
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    add_dataset_args(parser)
+    add_execution_args(parser)
 
+
+def run(args: argparse.Namespace) -> None:
     models = resolve_selected_models(args)
     items = resolve_dataset(args)
     instruction = build_instruction(CANONICAL_LANGUAGE, CANONICAL_SHOT)
@@ -35,6 +34,8 @@ def main() -> None:
     print(f"Tier 1 benchmark: {len(items)} images x {len(models)} models, condition={CANONICAL_CONDITION}")
     n_labeled = len(labeled_only(items))
     print(f"  {n_labeled}/{len(items)} images currently have ground truth (only those will be scored)")
+    if args.resume:
+        print_resume_status(TIER, models, items, [CANONICAL_CONDITION])
 
     if args.dry_run:
         est = estimate_run_cost(models, instruction, n_images=len(items))
@@ -60,7 +61,3 @@ def main() -> None:
 
     print("\nPer-model summary:")
     print(model_summary(image_df).to_string(index=False))
-
-
-if __name__ == "__main__":
-    main()

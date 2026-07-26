@@ -1,10 +1,9 @@
-#!/usr/bin/env python3
-"""Tier 4a — sample incorrect fields from a prior run into a double-coding sheet.
+"""Tier 4a -- sample incorrect fields from a prior run into a double-coding sheet.
 
-Reads from the on-disk cache only (no API calls) — run 01_run_benchmark.py
-first. Produces two identical CSVs (error_sample_coder_a.csv / _coder_b.csv)
-with blank `error_category` / `notes` columns for two independent human
-coders. Run 05_score_error_taxonomy.py afterward to compute Cohen's kappa.
+Reads from the on-disk cache only (no API calls) -- run `benchmark` first.
+Produces two identical CSVs (error_sample_coder_a.csv / _coder_b.csv) with
+blank `error_category` / `notes` columns for two independent human coders.
+Run `score-taxonomy` afterward to compute Cohen's kappa.
 
 Suggested categories (free text, but keep these as the shared vocabulary):
   diacritics       - content right, Vietnamese diacritics wrong
@@ -18,9 +17,6 @@ Suggested categories (free text, but keep these as the shared vocabulary):
   wrong_value              - any other incorrect value/content
   missing_field               - field left empty when the label had content
   malformed_json                  - see json_valid/api_error columns
-
-Usage:
-    uv run scripts/04_export_error_sample.py --sample-size 300
 """
 
 from __future__ import annotations
@@ -28,8 +24,7 @@ from __future__ import annotations
 import argparse
 import random
 
-from _common import add_common_args, resolve_dataset, resolve_selected_models
-
+from vifoodlabel.cli.common import add_dataset_args, resolve_dataset, resolve_selected_models
 from vifoodlabel.config import SCORED_RESULTS_DIR
 from vifoodlabel.io_utils import labeled_only
 from vifoodlabel.prompts import CANONICAL_CONDITION
@@ -54,15 +49,15 @@ def _iter_incorrect_fields(scores):
             yield s, NUTRITION_FIELD, "nutrition", n.name_f1
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    add_common_args(parser)
+def add_arguments(parser: argparse.ArgumentParser) -> None:
+    add_dataset_args(parser)
     parser.add_argument("--tier", default="benchmark")
     parser.add_argument("--condition", default=CANONICAL_CONDITION)
     parser.add_argument("--sample-size", type=int, default=300)
     parser.add_argument("--seed", type=int, default=42)
-    args = parser.parse_args()
 
+
+def run(args: argparse.Namespace) -> None:
     models = resolve_selected_models(args)
     items = labeled_only(resolve_dataset(args))
     if not items:
@@ -71,7 +66,7 @@ def main() -> None:
 
     records = load_cached_records(args.tier, models, items, args.condition)
     if not records:
-        print(f"No cached responses found for tier={args.tier!r} condition={args.condition!r}. Run 01_run_benchmark.py first.")
+        print(f"No cached responses found for tier={args.tier!r} condition={args.condition!r}. Run 'main.py benchmark' first.")
         return
 
     scores = score_records(records)
@@ -112,8 +107,4 @@ def main() -> None:
         print(f"Wrote {len(df)} rows to {out_path}")
 
     print(f"\n{len(rows)} total incorrect (image, model, field) instances found; sampled {len(sample)}.")
-    print("Have two coders independently fill in error_category/notes, then run 05_score_error_taxonomy.py.")
-
-
-if __name__ == "__main__":
-    main()
+    print("Have two coders independently fill in error_category/notes, then run 'main.py score-taxonomy'.")

@@ -11,7 +11,7 @@ model producing malformed JSON, which is itself a scored failure mode).
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 SCALAR_FIELDS = ["product_name", "origin", "net_weight", "mfg_date", "expiry_date"]
 LIST_FIELDS = ["ingredient", "additive", "warning"]
@@ -25,7 +25,13 @@ class NutritionEntry(BaseModel):
 
 
 class LabelSchema(BaseModel):
-    """Strict schema. Ground-truth files must validate against this as-is."""
+    """Strict schema. Ground-truth files must validate against this as-is.
+
+    Annotators may legitimately write `null` for any field that isn't
+    visible in the photographed frame (docs/annotation-guidelines.md §4) --
+    `null` and "empty" ("" / []) mean the same thing here, so both are
+    accepted and `null` is normalized to the field's empty value below.
+    """
 
     product_name: str
     ingredient: list[str] = Field(default_factory=list)
@@ -36,6 +42,16 @@ class LabelSchema(BaseModel):
     net_weight: str
     mfg_date: str
     expiry_date: str
+
+    @field_validator(*SCALAR_FIELDS, mode="before")
+    @classmethod
+    def _null_scalar_to_empty_string(cls, value: object) -> object:
+        return "" if value is None else value
+
+    @field_validator(*LIST_FIELDS, NUTRITION_FIELD, mode="before")
+    @classmethod
+    def _null_list_to_empty_list(cls, value: object) -> object:
+        return [] if value is None else value
 
 
 def _coerce_str(value: object, path: str, issues: list[str]) -> str:
