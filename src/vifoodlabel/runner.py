@@ -44,6 +44,18 @@ async def _run_one(client: VLMClient, tier: str, semaphore: asyncio.Semaphore, r
     async with semaphore:
         response = await client.extract(run_item.model, run_item.image_path, run_item.instruction)
 
+    if not response.ok:
+        # Deliberately NOT cached: errors here (insufficient credits, a
+        # transient provider outage, rate limits that outlasted the
+        # in-client retry budget, ...) are often resolved between runs
+        # (e.g. by topping up the account), not by our code. Caching them
+        # would make that failure permanent -- a plain rerun of the same
+        # command wouldn't retry it without an explicit --force. A
+        # genuinely persistent failure (dead model slug, etc.) just costs
+        # a wasted round trip on rerun until it's fixed in configs/models.yaml.
+        print(f"  [error] {run_item.model.key} {run_item.item.image_id} {run_item.condition}: {response.error}")
+        return {"content": None, "error": response.error, "finish_reason": response.finish_reason}
+
     save_cached(
         tier, run_item.model, run_item.item.image_id, run_item.condition,
         content=response.content, input_tokens=response.input_tokens, output_tokens=response.output_tokens,
