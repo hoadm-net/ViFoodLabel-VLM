@@ -11,7 +11,7 @@ import pytest
 from openai import BadRequestError
 from PIL import Image
 
-from vifoodlabel.client import VLMClient
+from vifoodlabel.client import LOCAL_EXTRA_BODY, VLMClient
 from vifoodlabel.config import ModelSpec
 
 
@@ -153,7 +153,15 @@ class TestReasoningFallback:
 
     def test_local_model_never_gets_reasoning_param(self):
         client = VLMClient(base_url="http://localhost:8000/v1", api_key="EMPTY")
-        assert client._extra_body_for(_model(is_local=True)) == {}
+        extra_body = client._extra_body_for(_model(is_local=True))
+        assert "reasoning" not in extra_body
+
+    def test_local_model_gets_repetition_penalty(self):
+        # Vintern-3B-beta reliably loops to the max_tokens ceiling at
+        # temperature=0 with no repetition penalty (see LOCAL_EXTRA_BODY in
+        # client.py) -- every self-hosted/local model call must carry it.
+        client = VLMClient(base_url="http://localhost:8000/v1", api_key="EMPTY")
+        assert client._extra_body_for(_model(is_local=True)) == LOCAL_EXTRA_BODY
 
 
 def _record_and_return(response):

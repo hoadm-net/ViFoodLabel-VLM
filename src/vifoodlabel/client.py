@@ -48,6 +48,17 @@ TRUNCATION_FINISH_REASON = "length"
 # vLLM's own convention for a local, no-auth-required server (see vLLM docs).
 LOCAL_API_KEY_PLACEHOLDER = "EMPTY"
 
+# Vintern-3B-beta (the only self-hosted/local model) reliably falls into a
+# degenerate repetition loop at temperature=0 with no repetition penalty --
+# observed hitting the full 16000-token max_tokens ceiling on every call
+# without emitting an EOS, at ~470s/call. Empirically grid-searched on this
+# model+prompt: repetition_penalty=1.0 (off) and 1.3 both loop to the ceiling
+# (1.3 into a *different* degenerate loop, e.g. repeating a single rare
+# token) -- 1.15 is the value that reliably stops cleanly at a real EOS in a
+# few hundred tokens. vLLM's OpenAI-compatible server accepts this as a
+# non-standard sampling param via extra_body.
+LOCAL_EXTRA_BODY = {"repetition_penalty": 1.15}
+
 
 @dataclass
 class RawResponse:
@@ -109,7 +120,7 @@ class VLMClient:
         # Skipped entirely for self-hosted models (Vintern/vLLM): vLLM's
         # OpenAI-compatible server may reject this OpenRouter-specific field.
         if model.is_local or model.slug in self._reasoning_disable_unsupported:
-            return {}
+            return dict(LOCAL_EXTRA_BODY) if model.is_local else {}
         return {"reasoning": {"enabled": False}}
 
     async def _create(self, model: ModelSpec, instruction: str, image_data_url: str, extra_body: dict):
