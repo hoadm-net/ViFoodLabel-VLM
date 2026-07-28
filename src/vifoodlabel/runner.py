@@ -15,7 +15,7 @@ from pathlib import Path
 from tqdm import tqdm
 
 from vifoodlabel.cache import load_cached, save_cached
-from vifoodlabel.client import TRUNCATION_FINISH_REASON, VLMClient, build_client
+from vifoodlabel.client import LOOP_CUTOFF_FINISH_REASON, TRUNCATION_FINISH_REASON, VLMClient, build_client
 from vifoodlabel.config import ModelSpec
 from vifoodlabel.cost import append_ledger
 from vifoodlabel.io_utils import DatasetItem, load_ground_truth
@@ -121,6 +121,12 @@ def score_records(records: list[tuple[RunItem, dict]]) -> list[ImageScore]:
             # rather than never finishing. Flag it either way so it's
             # auditable instead of hidden inside a recall miss.
             extra_issues.append("output_truncated")
+        elif record.get("finish_reason") == LOOP_CUTOFF_FINISH_REASON:
+            # Distinct from output_truncated: we cut the connection early on
+            # detecting a degenerate repetition loop (client.py), the server
+            # never hit its own max_tokens ceiling. Content before the loop
+            # started may still be good -- same salvage path as truncation.
+            extra_issues.append("generation_loop_detected")
 
         if content is None:
             extra_issues.append("api_error")

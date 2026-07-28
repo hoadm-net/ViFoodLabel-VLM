@@ -11,7 +11,7 @@ import pytest
 from openai import BadRequestError
 from PIL import Image
 
-from vifoodlabel.client import LOCAL_EXTRA_BODY, VLMClient
+from vifoodlabel.client import LOCAL_EXTRA_BODY, VLMClient, _CallOutcome, _has_repetition_loop
 from vifoodlabel.config import ModelSpec
 
 
@@ -23,12 +23,10 @@ def _model(is_local: bool = False) -> ModelSpec:
     )
 
 
-def _fake_response(content: str | None = "{}", finish_reason: str = "stop",
-                    prompt_tokens: int = 10, completion_tokens: int = 5):
-    message = SimpleNamespace(content=content)
-    choice = SimpleNamespace(message=message, finish_reason=finish_reason)
-    usage = SimpleNamespace(prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
-    return SimpleNamespace(choices=[choice], usage=usage)
+def _fake_outcome(content: str | None = "{}", finish_reason: str = "stop",
+                    prompt_tokens: int = 10, completion_tokens: int = 5) -> _CallOutcome:
+    return _CallOutcome(content=content, finish_reason=finish_reason,
+                         input_tokens=prompt_tokens, output_tokens=completion_tokens)
 
 
 def _bad_request(message: str) -> BadRequestError:
@@ -49,7 +47,7 @@ def image_path(tmp_path):
 class TestExtract:
     async def test_successful_call(self, image_path):
         client = VLMClient(base_url="http://example.invalid/v1", api_key="test")
-        client._create = _record_and_return(_fake_response(content='{"x": 1}', finish_reason="stop"))
+        client._create = _record_and_return(_fake_outcome(content='{"x": 1}', finish_reason="stop"))
 
         r = await client.extract(_model(), image_path, "extract this")
 
@@ -62,7 +60,7 @@ class TestExtract:
 
     async def test_truncated_finish_reason(self, image_path):
         client = VLMClient(base_url="http://example.invalid/v1", api_key="test")
-        client._create = _record_and_return(_fake_response(content='{"x": 1', finish_reason="length"))
+        client._create = _record_and_return(_fake_outcome(content='{"x": 1', finish_reason="length"))
 
         r = await client.extract(_model(), image_path, "extract this")
 
@@ -71,7 +69,7 @@ class TestExtract:
 
     async def test_empty_content_is_an_error(self, image_path):
         client = VLMClient(base_url="http://example.invalid/v1", api_key="test")
-        client._create = _record_and_return(_fake_response(content=None))
+        client._create = _record_and_return(_fake_outcome(content=None))
 
         r = await client.extract(_model(), image_path, "extract this")
 
@@ -106,13 +104,13 @@ class TestReasoningFallback:
             calls.append(extra_body)
             if extra_body:
                 raise _bad_request("Reasoning is mandatory for this endpoint and cannot be disabled.")
-            return _fake_response(content='{"x": 1}')
+            return _fake_outcome(content='{"x": 1}')
 
         client._create = fake_create
 
-        response = await client._call(_model(), "extract this", "data:image/jpeg;base64,x")
+        outcome = await client._call(_model(), "extract this", "data:image/jpeg;base64,x")
 
-        assert response.choices[0].message.content == '{"x": 1}'
+        assert outcome.content == '{"x": 1}'
         assert calls == [{"reasoning": {"enabled": False}}, {}]
 
     async def test_second_call_for_same_model_skips_straight_to_fallback(self, image_path):
@@ -126,7 +124,7 @@ class TestReasoningFallback:
             calls.append(extra_body)
             if extra_body:
                 raise _bad_request("Reasoning is mandatory for this endpoint.")
-            return _fake_response()
+            return _fake_outcome()
 
         client._create = fake_create
 
@@ -162,6 +160,146 @@ class TestReasoningFallback:
         # client.py) -- every self-hosted/local model call must carry it.
         client = VLMClient(base_url="http://localhost:8000/v1", api_key="EMPTY")
         assert client._extra_body_for(_model(is_local=True)) == LOCAL_EXTRA_BODY
+
+
+class TestLoopCutoffDispatch:
+    async def test_local_model_routes_through_streaming(self):
+        client = VLMClient(base_url="http://localhost:8000/v1", api_key="EMPTY")
+        calls = {"streaming": 0, "nonstreaming": 0}
+
+        async def fake_streaming(model, instruction, image_data_url, extra_body):
+            calls["streaming"] += 1
+            return _fake_outcome()
+
+        async def fake_nonstreaming(model, instruction, image_data_url, extra_body):
+            calls["nonstreaming"] += 1
+            return _fake_outcome()
+
+        client._create_streaming = fake_streaming
+        client._create = fake_nonstreaming
+
+        await client._call(_model(is_local=True), "x", "data:image/jpeg;base64,x")
+        await client._call(_model(is_local=False), "x", "data:image/jpeg;base64,x")
+
+        assert calls == {"streaming": 1, "nonstreaming": 1}
+
+    async def test_loop_cutoff_finish_reason_surfaces_on_raw_response(self, image_path):
+        client = VLMClient(base_url="http://localhost:8000/v1", api_key="EMPTY")
+        client._create_streaming = _record_and_return(
+            _fake_outcome(content="{'ingredient': ['a', 'a', 'a'", finish_reason="loop_cutoff")
+        )
+
+        r = await client.extract(_model(is_local=True), image_path, "extract this")
+
+        assert r.ok is True
+        assert r.loop_cutoff is True
+        assert r.truncated is False
+        assert r.finish_reason == "loop_cutoff"
+
+
+class TestRepetitionLoopDetection:
+    def test_normal_json_is_not_flagged(self):
+        text = '{"product_name": "Bánh xốp", "ingredient": ["Bột mì", "Đường", "Muối"]}'
+        assert _has_repetition_loop(text) is False
+
+    def test_not_enough_text_yet_is_not_flagged(self):
+        assert _has_repetition_loop("short prefix") is False
+
+    def test_short_single_character_run_is_not_flagged(self):
+        # 20 chars isn't enough to confirm min_repeats(5) periods of
+        # min_unit(8)+ chars each.
+        assert _has_repetition_loop("a" * 20) is False
+
+    def test_long_single_character_run_is_flagged(self):
+        assert _has_repetition_loop("a" * 50) is True
+
+    def test_multi_word_phrase_cycle_is_flagged(self):
+        # the real failure mode observed on a live Vintern-3B-beta call
+        # (image 0003, rp=1.15): a several-word phrase repeating verbatim.
+        unit = "hạt bí đỏ, hạt bí trắng, hạt bí xanh, hạt bí đen, "
+        text = "some real content first " + unit * 6
+        assert _has_repetition_loop(text) is True
+
+    def test_repeated_json_field_is_flagged(self):
+        # the other observed failure mode (image 0001, rp=1.0): a whole
+        # repeated {name: value} object.
+        unit = "{'name': 'Chất béo thực vật', 'value': '0 g'}, "
+        text = "prefix " + unit * 6
+        assert _has_repetition_loop(text) is True
+
+    def test_scattered_short_repeats_are_not_flagged(self):
+        # distinct nutrition rows legitimately sharing a unit ("g") must not
+        # false-positive just because "g" recurs.
+        text = "Chất đạm: 5 g, Chất béo: 3 g, Carbohydrat: 10 g, Natri: 20 mg"
+        assert _has_repetition_loop(text) is False
+
+
+class _FakeChunk:
+    def __init__(self, delta_content=None, finish_reason=None, usage=None):
+        delta = SimpleNamespace(content=delta_content)
+        choice = SimpleNamespace(delta=delta, finish_reason=finish_reason)
+        self.choices = [choice]
+        self.usage = usage
+
+
+class _FakeStream:
+    def __init__(self, chunks):
+        self._chunks = chunks
+        self.closed = False
+
+    def __aiter__(self):
+        return self._iter()
+
+    async def _iter(self):
+        for chunk in self._chunks:
+            yield chunk
+
+    async def close(self):
+        self.closed = True
+
+
+class TestConsumeStreamWithLoopGuard:
+    async def test_cuts_off_early_and_closes_on_detected_loop(self):
+        unit = "{'name': 'Chất béo thực vật', 'value': '0 g'}, "
+        chunks = [_FakeChunk(delta_content="prefix ")]
+        chunks += [_FakeChunk(delta_content=unit) for _ in range(10)]
+        stream = _FakeStream(chunks)
+        client = VLMClient(base_url="http://localhost:8000/v1", api_key="EMPTY")
+
+        outcome = await client._consume_stream_with_loop_guard(stream)
+
+        assert outcome.finish_reason == "loop_cutoff"
+        assert stream.closed is True
+        assert outcome.content.startswith("prefix ")
+        assert outcome.content.count(unit) < 10  # cut short, not all 10 consumed
+        assert 0 < outcome.output_tokens <= 11
+
+    async def test_normal_stream_completes_without_cutoff(self):
+        chunks = [
+            _FakeChunk(delta_content='{"x": 1}'),
+            _FakeChunk(delta_content=None, finish_reason="stop"),
+        ]
+        stream = _FakeStream(chunks)
+        client = VLMClient(base_url="http://localhost:8000/v1", api_key="EMPTY")
+
+        outcome = await client._consume_stream_with_loop_guard(stream)
+
+        assert outcome.finish_reason == "stop"
+        assert stream.closed is False
+        assert outcome.content == '{"x": 1}'
+
+    async def test_usage_chunk_overrides_chunk_count_estimate(self):
+        chunks = [
+            _FakeChunk(delta_content='{"x": 1}'),
+            _FakeChunk(usage=SimpleNamespace(prompt_tokens=42, completion_tokens=7)),
+        ]
+        stream = _FakeStream(chunks)
+        client = VLMClient(base_url="http://localhost:8000/v1", api_key="EMPTY")
+
+        outcome = await client._consume_stream_with_loop_guard(stream)
+
+        assert outcome.input_tokens == 42
+        assert outcome.output_tokens == 7
 
 
 def _record_and_return(response):

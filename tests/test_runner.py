@@ -131,7 +131,27 @@ class TestScoreRecordsTruncationFlag:
         ri = RunItem(item=item, model=_model(), condition="vi_zero", instruction="x", image_path=item.image_path)
         record = {"content": json.dumps(gt), "error": None, "finish_reason": "stop"}
         scores = score_records([(ri, record)])
+        assert "output_truncated" not in scores[0].structural_issues
+        assert "generation_loop_detected" not in scores[0].structural_issues
 
+    def test_loop_cutoff_finish_reason_is_flagged_distinctly_from_truncation(self, tmp_path):
+        # generation_loop_detected (client-side early cutoff on a detected
+        # repetition loop) must not be conflated with output_truncated (the
+        # server's own max_tokens ceiling) -- they're different failure
+        # modes for the error taxonomy (Tier 4).
+        item = DatasetItem(image_id="0001", image_path=tmp_path / "0001.jpeg", label_path=tmp_path / "0001.json")
+        gt = {
+            "product_name": "x", "ingredient": [], "additive": [], "warning": [], "nutrition": [],
+            "origin": "x", "net_weight": "x", "mfg_date": "x", "expiry_date": "x",
+        }
+        import json
+        item.label_path.write_text(json.dumps(gt), encoding="utf-8")
+
+        ri = RunItem(item=item, model=_model(), condition="vi_zero", instruction="x", image_path=item.image_path)
+        record = {"content": '{"product_name": "x"', "error": None, "finish_reason": "loop_cutoff"}
+        scores = score_records([(ri, record)])
+
+        assert "generation_loop_detected" in scores[0].structural_issues
         assert "output_truncated" not in scores[0].structural_issues
 
     def test_unlabeled_image_is_skipped(self, tmp_path):
