@@ -10,13 +10,18 @@ from vifoodlabel.prompts import ALL_PROMPT_CONDITIONS, CANONICAL_CONDITION, buil
 
 
 class TestBuildInstruction:
-    def test_all_four_conditions_render_without_leftover_placeholders(self):
-        for language, shot in ALL_PROMPT_CONDITIONS:
-            text = build_instruction(language, shot)
-            assert "{fields}" not in text
-            assert "{example}" not in text
-            assert "{classification_rules}" not in text
-            assert len(text) > 0
+    def test_all_four_combinations_render_without_leftover_placeholders(self):
+        # Covers all 4 (language, shot) combinations that build_instruction
+        # supports, independent of which ones ALL_PROMPT_CONDITIONS actually
+        # runs by default (en_one is a valid combination even though Tier 2
+        # doesn't include it in its default ablation -- see prompts.py).
+        for language in ("vi", "en"):
+            for shot in ("zero", "one"):
+                text = build_instruction(language, shot)
+                assert "{fields}" not in text
+                assert "{example}" not in text
+                assert "{classification_rules}" not in text
+                assert len(text) > 0
 
     def test_zero_shot_has_no_example_section(self):
         text = build_instruction("vi", "zero")
@@ -57,8 +62,10 @@ class TestBuildInstruction:
     def test_canonical_condition_is_vi_zero(self):
         assert CANONICAL_CONDITION == "vi_zero"
 
-    def test_all_prompt_conditions_has_four_entries(self):
-        assert len(ALL_PROMPT_CONDITIONS) == 4
+    def test_all_prompt_conditions_has_three_entries(self):
+        # One-factor-at-a-time against vi_zero, not a full 2x2 -- en_one is
+        # deliberately excluded, see prompts.py.
+        assert len(ALL_PROMPT_CONDITIONS) == 3
         assert set(ALL_PROMPT_CONDITIONS) == {
-            ("vi", "zero"), ("vi", "one"), ("en", "zero"), ("en", "one"),
+            ("vi", "zero"), ("vi", "one"), ("en", "zero"),
         }

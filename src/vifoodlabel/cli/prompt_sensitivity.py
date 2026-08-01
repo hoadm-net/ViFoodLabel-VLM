@@ -1,10 +1,13 @@
-"""Tier 2 -- prompt sensitivity ablation: {vi,en} x {zero,one}-shot, on a
-stratified subset of the dataset (default 120 images, ~20% of 600 -- see
+"""Tier 2 -- prompt sensitivity: two one-factor-at-a-time comparisons against
+the vi_zero baseline (vi_zero vs vi_one for the shot-count effect, vi_zero vs
+en_zero for the instruction-language effect -- see prompts.py's
+ALL_PROMPT_CONDITIONS for why en_one is deliberately not run), on a subset of
+the dataset (default 120 images, ~20% of 600, pinned -- see
 cli/common.py's add_subset_args).
 
 Uses the same cache namespace ("benchmark") as Tier 1, keyed by condition
-(vi_zero/vi_one/en_zero/en_one) -- so the vi_zero leg transparently reuses
-Tier 1's results instead of re-purchasing them from the API.
+(vi_zero/vi_one/en_zero) -- so the vi_zero leg transparently reuses Tier 1's
+results instead of re-purchasing them from the API.
 """
 
 from __future__ import annotations

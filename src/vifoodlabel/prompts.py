@@ -46,9 +46,14 @@ CANONICAL_LANGUAGE: Language = "vi"
 CANONICAL_SHOT: Shot = "zero"
 CANONICAL_CONDITION = condition_name(CANONICAL_LANGUAGE, CANONICAL_SHOT)
 
+# One-factor-at-a-time against the vi_zero baseline, not a full 2x2 factorial
+# -- vi_zero vs vi_one isolates the shot-count effect, vi_zero vs en_zero
+# isolates the instruction-language effect. en_one (both factors changed at
+# once) is deliberately omitted: it would only add the language x shot
+# interaction term, which isn't a question this benchmark asks, at the cost
+# of a fourth condition's worth of calls on every model.
 ALL_PROMPT_CONDITIONS: list[tuple[Language, Shot]] = [
     ("vi", "zero"),
     ("vi", "one"),
     ("en", "zero"),
-    ("en", "one"),
 ]

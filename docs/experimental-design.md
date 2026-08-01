@@ -52,11 +52,20 @@ model, with bootstrap CI and pairwise McNemar significance (see
 
 ## Tier 2 — prompt sensitivity
 
-`uv run main.py prompt-sensitivity` — 2×2 ablation: instruction language
-(`vi`/`en`) × shot count (`zero`/`one`), on the same subset mechanism as
-Tier 3 (default 120 images, ~20% of 600). This subset is **pinned**, not
-recomputed per run: `configs/subset_120.json`, generated once by
-`scripts/select_subset.py` (a random draw, seed 42 — see `cli/common.py`'s
+`uv run main.py prompt-sensitivity` — two one-factor-at-a-time comparisons
+against the `vi_zero` baseline, not a full 2×2 factorial: `vi_zero` vs
+`vi_one` isolates the shot-count effect (does a one-shot example help?),
+`vi_zero` vs `en_zero` isolates the instruction-language effect (does the
+language the instructions are written in matter?). The fourth cell of the
+factorial, `en_one`, is deliberately not run — it would only measure the
+language×shot interaction, which isn't a question this benchmark asks, at
+the cost of a fourth condition's worth of calls on every model (see
+`prompts.py`'s `ALL_PROMPT_CONDITIONS`).
+
+Runs on the same subset mechanism as Tier 3 (default 120 images, ~20% of
+600). This subset is **pinned**, not recomputed per run:
+`configs/subset_120.json`, generated once by `scripts/select_subset.py` (a
+random draw, seed 42 — see `cli/common.py`'s
 `add_subset_args`/`DEFAULT_SUBSET_SIZE`/`load_pinned_subset`), so the same
 120 images are used across every future run and every tier that needs this
 subset, immune to any later change in the sampling code or the underlying
@@ -64,9 +73,9 @@ image pool. Passing a non-default `--subset-size`/`--seed` still draws a
 fresh ad hoc subset instead of using the pinned one. Like Tier 3, this is a
 paired per-image comparison across conditions rather than the main
 benchmark's headline per-model claim, so a subset gives adequate power
-without paying for 600 images × 4 conditions. Uses the *same* cache
+without paying for 600 images × 3 conditions. Uses the *same* cache
 namespace as Tier 1 (`tier="benchmark"`), so the `vi_zero` leg is never
-re-run — only the other 3 conditions cost anything.
+re-run — only `vi_one` and `en_zero` cost anything.
 
 The one-shot exemplar is a **synthetic, text-only illustrative example** — a
 fictional product with made-up values, described in the prompt text, not
