@@ -1,10 +1,13 @@
 # Ground truth annotation guidelines
 
-The guidelines human annotators follow when correcting the auto-generated
-draft JSON for each image against the [9-field schema](dataset.md). The two
-fields annotators get wrong most often — the `ingredient`/`additive` split
-and the `warning` definition — get the most detail below; §3 covers smaller
-notes for the remaining fields.
+The guidelines human annotators follow when filling in the ground-truth
+JSON for each image against the [9-field schema](dataset.md). Annotation is
+fully manual: starting from a blank template of the schema, the annotator
+reads a downscaled version of the product photo and transcribes the
+information directly — there is no automated pre-fill or draft step. The
+two fields annotators get wrong most often — the `ingredient`/`additive`
+split and the `warning` definition — get the most detail below; §3 covers
+smaller notes for the remaining fields.
 
 The classification rules here (§1, §2) are also distilled directly into the
 model prompts (`prompts/classification_rules_{vi,en}.txt`) — a zero-shot
@@ -105,19 +108,18 @@ Tocopherol), Bột cacao, Chất nhũ hóa: Lecithin đậu nành, Hương liệ
 - `Chất nhũ hóa: Lecithin đậu nành` and `Hương liệu tổng hợp` are
   independent top-level items → Case 2: `additive` only.
 
-### 1.5 Watch out for fabricated content
+### 1.5 Transcribe exact label text, don't paraphrase from memory
 
-The draft sometimes contains an `ingredient[]` item that doesn't match any
-text actually visible on the image — usually the pre-annotation system
-paraphrasing/substituting different wording.
+An `ingredient[]` entry must match text actually visible on the image — when
+typing out a dense ingredient list it's easy to accidentally paraphrase or
+substitute similar-sounding wording instead of transcribing exactly.
 
 Real case observed: the label read *"hương liệu giống tự nhiên và tự nhiên
-dùng cho thực phẩm"*, but the draft wrote *"chất xơ tự nhiên và tự nhiên
-dùng cho thực phẩm"* in `ingredient[]` — that phrase doesn't exist on the
-label.
+dùng cho thực phẩm"*, but was entered as *"chất xơ tự nhiên và tự nhiên
+dùng cho thực phẩm"* — a phrase that doesn't exist anywhere on the label.
 
-When reviewing: if an `ingredient` entry reads oddly and you can't find
-matching text on the image, it's likely this failure mode — correct it to
+Self-check before finalizing: if an `ingredient` entry reads oddly, re-check
+it against the image directly rather than trusting recall — correct it to
 match the label's actual printed text (or delete if there's no basis for it).
 
 ## 2. `warning`
@@ -181,9 +183,9 @@ labels that word the same kind of content differently.)*
    (belongs to `mfg_date`/`expiry_date`). A sentence that *commands or
    states a consequence* about using an expired product (e.g. "Không sử
    dụng sản phẩm đã hết hạn sử dụng.") → still a valid `warning`, since it
-   passes the functional test (a)+(b). The draft sometimes duplicates the
+   passes the functional test (a)+(b). It's easy to accidentally enter the
    date-disclosure sentence into both `warning` and the date field — if you
-   see that, remove it from `warning` and keep it only in the date field.
+   catch yourself doing that, keep it only in the date field.
 
 ### 2.4 Exception
 

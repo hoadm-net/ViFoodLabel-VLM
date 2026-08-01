@@ -33,7 +33,13 @@ Every label file is a single JSON object with exactly 9 fields:
 | `expiry_date` | string | Expiry date, or instructions for finding it if not printed directly |
 
 A field with no content on the label is an empty string `""` (scalar fields)
-or an empty array `[]` (array fields) — never `null` or omitted.
+or an empty array `[]` (array fields) in the canonical form used throughout
+this repo. Raw annotation files may legitimately contain `null` instead —
+annotators write `null` when a field genuinely isn't visible in the
+photographed frame (e.g. the photo only captures the ingredient panel, not
+the front-of-pack product name); `LabelSchema` coerces `null` to the
+appropriate empty value at load time, so downstream code never has to
+special-case it.
 
 ### Example
 

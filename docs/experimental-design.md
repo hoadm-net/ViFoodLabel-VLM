@@ -17,14 +17,30 @@ vLLM endpoint doesn't recognize the field.
 
 This was a deliberate call, not a default left untouched: MiMo-V2.5 was
 observed defaulting to thinking-enabled and burning its entire output-token
-budget on hidden reasoning without ever emitting an answer, on 2 of 3 pilot
-images (a known OpenRouter/provider behavior for that model, not a prompt
-issue — see `git log` for `client.py` around 2026-07). Rather than leaving
-each model at whatever its provider defaults to (uncontrolled and, per the
-above, occasionally pathological) or special-casing just the broken model,
+budget on hidden reasoning without ever emitting an answer (a known
+OpenRouter/provider behavior for that model, not a prompt issue — see
+`git log` for `client.py` around 2026-07). Rather than leaving each model at
+whatever its provider defaults to (uncontrolled and, per the above,
+occasionally pathological) or special-casing just the broken model,
 reasoning is switched off the same way for every model, so all 7 are
 compared on their direct zero-shot answer under identical inference
 parameters.
+
+**One disclosed exception, local to Vintern**: at `temperature=0` with no
+repetition penalty, Vintern-3B-beta loops (repeats a short substring) to the
+full `max_tokens` ceiling instead of emitting an end-of-sequence token — a
+failure mode never observed on the 6 OpenRouter-routed models. Two
+mitigations apply only to the self-hosted call path (`extra_body`, local
+models only): `repetition_penalty=1.15` (grid-searched on real images —
+cuts the loop rate but doesn't eliminate it), and a streaming watch that
+detects a short substring repeating many times back-to-back and closes the
+connection immediately, salvaging whatever content came before the loop the
+same way truncation already does (tagged `generation_loop_detected`, a
+structural issue distinct from `output_truncated` — see
+[metrics.md](metrics.md#json-validity--structural-issues)). This is the one
+place inference isn't byte-for-byte identical across all 7 models; it exists
+because Vintern has no equivalent lever to the OpenRouter reasoning
+parameter for fixing the same class of runaway-generation problem.
 
 ## Tier 1 — main benchmark
 
@@ -91,7 +107,9 @@ wrong unit, pairing error (cross-row swap), missing additive, wrong language
 (right content, wrong-language portion of a multi-language label — see
 [annotation-guidelines.md](annotation-guidelines.md)), hallucination, wrong
 value, missing field, output truncated (hit `max_tokens`, not a real
-extraction failure — see `client.py`'s `finish_reason` tracking), malformed
+extraction failure — see `client.py`'s `finish_reason` tracking), generation
+loop (Vintern-only, auto-detected and cut short — see [inference
+parameters](#inference-parameters-every-call-every-tier) above), malformed
 JSON.
 
 `uv run main.py score-taxonomy` computes Cohen's κ between the two completed

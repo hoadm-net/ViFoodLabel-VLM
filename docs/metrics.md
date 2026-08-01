@@ -60,6 +60,16 @@ This one formula also correctly handles the empty-list edge cases (both
 empty → 1.0; only one side empty → 0.0 on the non-vacuous side) without
 special-casing.
 
+**Merge-aware bonus**: after standard bipartite matching, if the *leftover
+unmatched* items on one side, concatenated together, are a high-similarity
+match for a single leftover item on the other side (e.g. two ground-truth
+warning sentences the model combined into one array entry), both sides are
+credited fully for that portion instead of scoring a hard miss. This is
+deliberately narrow — only "several items on one side == one item on the
+other," not arbitrary many-to-many regrouping — and doesn't give free
+credit to a genuinely hallucinated extra item sitting alongside a real
+match.
+
 ## Nutrition pairing (`nutrition[{name, value}]`)
 
 This is the metric the RQ cares about most, and it's deliberately split into
@@ -109,6 +119,12 @@ pairing_accuracy  = 1 - (n_pairing_errors / len(gt_entries))
 Every prediction also carries a `json_valid` flag and a list of
 `structural_issues` (JSON parse failure, JSON-repair was needed, a field
 missing from the model's output, wrong type coerced, etc. — see
-`schema.coerce_prediction`). A model that can't produce parseable JSON scores
-zero on the affected fields rather than crashing the pipeline, and the issue
-list feeds directly into the [error taxonomy](experimental-design.md#tier-4--error-taxonomy).
+`schema.coerce_prediction`), plus two issues detected upstream in the client/
+runner rather than at parse time: `output_truncated` (the response hit
+`max_tokens`, tracked via `finish_reason`) and `generation_loop_detected`
+(self-hosted Vintern only — an auto-detected repeated-substring loop cut
+short before it could burn the full token budget; see
+[experimental-design.md](experimental-design.md#inference-parameters-every-call-every-tier)).
+A model that can't produce parseable JSON scores zero on the affected fields
+rather than crashing the pipeline, and the issue list feeds directly into
+the [error taxonomy](experimental-design.md#tier-4--error-taxonomy).

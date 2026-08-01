@@ -76,3 +76,15 @@ endpoint on `http://localhost:8000/v1`, matching the `vintern-3b` entry in
 benchmark scripts from, either SSH-tunnel port 8000 back
 (`ssh -L 8000:localhost:8000 user@gpu-host`) or edit that entry's `base_url`
 to the GPU host's reachable address.
+
+`--max-model-len` is set to 24576, comfortably above
+`DEFAULT_MAX_OUTPUT_TOKENS` (16000 — see
+[experimental-design.md](experimental-design.md#inference-parameters-every-call-every-tier))
+plus prompt/image tokens; every real request 400s if this doesn't leave
+enough headroom. Vintern is also the only model in the roster with a known
+generation-loop failure mode (repeats a short substring to the full token
+ceiling instead of stopping), which is why it gets two Vintern-only
+mitigations (`repetition_penalty`, a streaming loop-cutoff) that no other
+model in the roster needs — see experimental-design.md's inference
+parameters section for the full explanation; it's the one place inference
+isn't identical across all 7 models.

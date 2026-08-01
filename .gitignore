@@ -33,3 +33,6 @@ Thumbs.db
 
 # Claude Code local session state (CLAUDE.md itself stays tracked)
 .claude/settings.local.json
+
+# Local-only working notes, not part of the repo (paper-writing aid)
+architecture.md

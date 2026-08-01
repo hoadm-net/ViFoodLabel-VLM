@@ -71,6 +71,10 @@ uv run main.py benchmark
 uv run main.py prompt-sensitivity
 uv run main.py perturbation
 uv run main.py report
+
+# Tier 4: error taxonomy (score-taxonomy after both coder CSVs are filled in)
+uv run main.py error-sample
+uv run main.py score-taxonomy
 ```
 
 Every API-calling subcommand (`benchmark`, `prompt-sensitivity`,
