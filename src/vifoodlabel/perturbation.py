@@ -96,13 +96,24 @@ def perturbed_image_path(image_id: str, kind: str, severity: int) -> Path:
     return PERTURBED_IMAGES_DIR / condition / f"{image_id}.jpeg"
 
 
+def _per_image_seed(seed: int, image_id: str) -> int:
+    """Offsets the base seed by the image id so glare's random highlight
+    position (the only perturbation with any randomness) varies per image
+    instead of landing in the exact same relative spot on every photo --
+    while staying fully deterministic/reproducible for a given (seed,
+    image_id) pair. A single shared seed would otherwise re-seed the RNG
+    identically on every call, since `np.random.default_rng(seed)` always
+    produces the same first draw for the same seed."""
+    return seed + int(image_id)
+
+
 def materialize(image_path: Path, image_id: str, kind: str, severity: int, seed: int = 0, force: bool = False) -> Path:
     """Generate (if not already cached) the perturbed image and return its path."""
     out_path = perturbed_image_path(image_id, kind, severity)
     if out_path.exists() and not force:
         return out_path
     image = Image.open(image_path).convert("RGB")
-    perturbed = apply_perturbation(image, kind, severity, seed=seed)
+    perturbed = apply_perturbation(image, kind, severity, seed=_per_image_seed(seed, image_id))
     out_path.parent.mkdir(parents=True, exist_ok=True)
     perturbed.save(out_path, format="JPEG", quality=92)
     return out_path

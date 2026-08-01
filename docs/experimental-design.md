@@ -99,7 +99,7 @@ otherwise-clean photos, in place of collecting real hard-to-read photos:
 | Corruption | Levels | Implementation |
 |---|---|---|
 | Blur | Gaussian σ ∈ {1.5, 3.5, 6.0} | `PIL.ImageFilter.GaussianBlur` |
-| Glare | intensity/radius ∈ {(.35,.18), (.55,.22), (.75,.28)} | additive radial highlight, screen-blended |
+| Glare | intensity/radius ∈ {(.35,.18), (.55,.22), (.75,.28)} | radial highlight added on top of the pixels (not a true screen blend), with a squared falloff from center for a concentrated hotspot rather than a flat disc; center position is random, offset per image id so it doesn't land in the same spot on every photo (see `_per_image_seed` — deterministic/reproducible given the same seed, still varies image to image) |
 | Rotation | 5° / 15° / 30° | rotated, then cropped to the largest axis-aligned inscribed rectangle and resized back to the original canvas — **no blank corners**, so the model can't infer "this was rotated" from a padding artifact |
 
 See `src/vifoodlabel/perturbation.py`. The subset size trades off cost

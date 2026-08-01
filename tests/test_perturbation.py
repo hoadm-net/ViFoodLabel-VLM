@@ -98,3 +98,33 @@ class TestMaterialize(object):
         out2 = perturbation_module.materialize(src, "0001", "blur", 1, seed=0)
         assert out2 == out1
         assert out2.stat().st_mtime == mtime1  # not regenerated
+
+    def test_glare_position_differs_across_image_ids_given_same_seed(self, tmp_path, monkeypatch):
+        # Regression test: materialize() used to pass the same base seed
+        # straight through to _apply_glare for every image, and a fresh
+        # np.random.default_rng(seed) always draws the same first value for
+        # the same seed -- so every image got glare in the identical
+        # relative spot instead of a genuinely varying "random position".
+        from vifoodlabel import perturbation as perturbation_module
+
+        monkeypatch.setattr(perturbation_module, "PERTURBED_IMAGES_DIR", tmp_path)
+        src = tmp_path / "source.jpeg"
+        Image.new("RGB", (200, 200), color=(30, 30, 30)).save(src, format="JPEG")
+
+        out1 = perturbation_module.materialize(src, "0001", "glare", 3, seed=42)
+        out2 = perturbation_module.materialize(src, "0002", "glare", 3, seed=42)
+        arr1 = np.asarray(Image.open(out1))
+        arr2 = np.asarray(Image.open(out2))
+        assert not np.array_equal(arr1, arr2)
+
+
+class TestPerImageSeed:
+    def test_differs_across_image_ids(self):
+        from vifoodlabel.perturbation import _per_image_seed
+
+        assert _per_image_seed(42, "0001") != _per_image_seed(42, "0002")
+
+    def test_deterministic_given_same_inputs(self):
+        from vifoodlabel.perturbation import _per_image_seed
+
+        assert _per_image_seed(42, "0007") == _per_image_seed(42, "0007")
