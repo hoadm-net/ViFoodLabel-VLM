@@ -11,10 +11,11 @@ touch the network, so they don't get flags that wouldn't do anything.
 from __future__ import annotations
 
 import argparse
+import json
 import random
 
 from vifoodlabel.cache import load_cached
-from vifoodlabel.config import ModelSpec, resolve_models
+from vifoodlabel.config import CONFIGS_DIR, ModelSpec, resolve_models
 from vifoodlabel.io_utils import DatasetItem, dataset_index, list_image_ids
 from vifoodlabel.runner import DEFAULT_CONCURRENCY_PER_MODEL
 
@@ -28,6 +29,12 @@ ID_WIDTH = 4  # matches data/images/NNNN.jpeg
 # a subset gives adequate power without paying for 600 images x N conditions.
 DEFAULT_SUBSET_SIZE = 120
 DEFAULT_SUBSET_SEED = 42
+
+# Materialized once by scripts/select_subset.py so the default subset is a
+# fixed, checked-in list -- not just "reproducible in theory" via the same
+# seed and code. Any future tier that wants the same 120 images reads this
+# file rather than picking its own subset.
+SUBSET_FILE = CONFIGS_DIR / "subset_120.json"
 
 
 def add_dataset_args(parser: argparse.ArgumentParser) -> None:
@@ -84,14 +91,38 @@ def select_subset(subset_size: int, seed: int) -> list[str]:
     return sorted(random.Random(seed).sample(all_ids, subset_size))
 
 
-def resolve_dataset_with_subset_default(args: argparse.Namespace) -> list[DatasetItem]:
-    """Like `resolve_dataset`, but falls back to a stratified random subset
-    (not the full dataset) when no explicit --images/--start-id/--end-id is
-    given. For the two ablation tiers -- see `add_subset_args`/`DEFAULT_SUBSET_SIZE`."""
+def load_pinned_subset() -> list[str] | None:
+    """The materialized default subset (`configs/subset_120.json`, written
+    once by `scripts/select_subset.py`), or None if it hasn't been generated
+    yet. Takes priority over a fresh `select_subset()` draw so the subset
+    stays byte-identical going forward, instead of merely reproducible given
+    the same seed, image pool, and sampling code."""
+    if not SUBSET_FILE.exists():
+        return None
+    payload = json.loads(SUBSET_FILE.read_text(encoding="utf-8"))
+    return payload["image_ids"]
+
+
+def resolve_subset_image_ids(args: argparse.Namespace) -> list[str]:
+    """Like `resolve_image_ids`, but when no explicit --images/--start-id/
+    --end-id is given, falls back to a subset instead of the full dataset --
+    for the two ablation tiers (see `add_subset_args`/`DEFAULT_SUBSET_SIZE`).
+    At the default --subset-size/--seed this is the pinned subset when one
+    has been generated; a non-default size/seed always draws fresh."""
     image_ids = resolve_image_ids(args)
-    if image_ids is None:
-        image_ids = select_subset(args.subset_size, args.seed)
-    items = dataset_index(image_ids)
+    if image_ids is not None:
+        return image_ids
+    if args.subset_size == DEFAULT_SUBSET_SIZE and args.seed == DEFAULT_SUBSET_SEED:
+        pinned = load_pinned_subset()
+        if pinned is not None:
+            return pinned
+    return select_subset(args.subset_size, args.seed)
+
+
+def resolve_dataset_with_subset_default(args: argparse.Namespace) -> list[DatasetItem]:
+    """Like `resolve_dataset`, but for the two ablation tiers -- see
+    `resolve_subset_image_ids`."""
+    items = dataset_index(resolve_subset_image_ids(args))
     if args.limit is not None:
         items = items[: args.limit]
     return items

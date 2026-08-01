@@ -3,9 +3,17 @@ selection used by both ablation tiers (Tier 2/3)."""
 
 from __future__ import annotations
 
+import json
 from argparse import Namespace
 
-from vifoodlabel.cli.common import DEFAULT_SUBSET_SIZE, resolve_image_ids, select_subset
+from vifoodlabel.cli.common import (
+    DEFAULT_SUBSET_SEED,
+    DEFAULT_SUBSET_SIZE,
+    load_pinned_subset,
+    resolve_image_ids,
+    resolve_subset_image_ids,
+    select_subset,
+)
 
 
 def _args(**overrides) -> Namespace:
@@ -64,3 +72,43 @@ class TestSelectSubset:
 
     def test_default_subset_size_is_120(self):
         assert DEFAULT_SUBSET_SIZE == 120
+
+
+class TestLoadPinnedSubset:
+    def test_returns_none_when_file_absent(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("vifoodlabel.cli.common.SUBSET_FILE", tmp_path / "missing.json")
+        assert load_pinned_subset() is None
+
+    def test_returns_image_ids_from_file(self, monkeypatch, tmp_path):
+        path = tmp_path / "subset_120.json"
+        path.write_text(json.dumps({"size": 3, "seed": 42, "image_ids": ["0001", "0002", "0003"]}))
+        monkeypatch.setattr("vifoodlabel.cli.common.SUBSET_FILE", path)
+        assert load_pinned_subset() == ["0001", "0002", "0003"]
+
+
+class TestResolveSubsetImageIds:
+    def test_explicit_images_wins_over_subset(self):
+        ids = resolve_subset_image_ids(_args(images=["0001"], subset_size=DEFAULT_SUBSET_SIZE, seed=DEFAULT_SUBSET_SEED))
+        assert ids == ["0001"]
+
+    def test_uses_pinned_subset_at_default_size_and_seed(self, monkeypatch, tmp_path):
+        path = tmp_path / "subset_120.json"
+        path.write_text(json.dumps({"size": 120, "seed": 42, "image_ids": ["0009", "0010"]}))
+        monkeypatch.setattr("vifoodlabel.cli.common.SUBSET_FILE", path)
+        ids = resolve_subset_image_ids(_args(subset_size=DEFAULT_SUBSET_SIZE, seed=DEFAULT_SUBSET_SEED))
+        assert ids == ["0009", "0010"]
+
+    def test_falls_back_to_live_selection_when_no_pinned_file(self, monkeypatch, tmp_path):
+        monkeypatch.setattr("vifoodlabel.cli.common.SUBSET_FILE", tmp_path / "missing.json")
+        monkeypatch.setattr("vifoodlabel.cli.common.list_image_ids", lambda: [f"{i:04d}" for i in range(1, 601)])
+        ids = resolve_subset_image_ids(_args(subset_size=DEFAULT_SUBSET_SIZE, seed=DEFAULT_SUBSET_SEED))
+        assert len(ids) == DEFAULT_SUBSET_SIZE
+
+    def test_custom_size_or_seed_ignores_pinned_file(self, monkeypatch, tmp_path):
+        path = tmp_path / "subset_120.json"
+        path.write_text(json.dumps({"size": 120, "seed": 42, "image_ids": ["0009", "0010"]}))
+        monkeypatch.setattr("vifoodlabel.cli.common.SUBSET_FILE", path)
+        monkeypatch.setattr("vifoodlabel.cli.common.list_image_ids", lambda: [f"{i:04d}" for i in range(1, 601)])
+        ids = resolve_subset_image_ids(_args(subset_size=5, seed=99))
+        assert ids != ["0009", "0010"]
+        assert len(ids) == 5
