@@ -1,8 +1,9 @@
-"""Combine whatever tiers have been run into summary tables + the degradation curve figure.
+"""Combine whatever tiers have been run into summary tables + the paper's
+figures (results/figures/*.png) -- see plotting.py for the shared style.
 
 Tier 1 (results/scored/tier1_*.csv) is required for the fullest report;
-Tier 2/3 outputs are used if present, skipped with a message otherwise. Safe
-to re-run at any time as more scored data appears.
+Tier 2/3/4 and cost outputs are used if present, skipped with a message
+otherwise. Safe to re-run at any time as more scored data appears.
 """
 
 from __future__ import annotations
@@ -12,7 +13,18 @@ import argparse
 import pandas as pd
 
 from vifoodlabel.config import FIGURES_DIR, SCORED_RESULTS_DIR
+from vifoodlabel.cost import LEDGER_PATH
 from vifoodlabel.metrics import model_field_summary, model_summary
+from vifoodlabel.plotting import (
+    plot_cost_effectiveness,
+    plot_degradation_curve,
+    plot_error_taxonomy,
+    plot_field_heatmap,
+    plot_leaderboard,
+    plot_nutrition_breakdown,
+    plot_prompt_sensitivity,
+    setup_style,
+)
 from vifoodlabel.prompts import CANONICAL_CONDITION
 from vifoodlabel.stats import bootstrap_ci_table, mcnemar_pairwise
 
@@ -27,6 +39,13 @@ def _load(name: str) -> pd.DataFrame | None:
         print(f"  (skipping, not found: {path})")
         return None
     return pd.read_csv(path)
+
+
+def _save_figure(fig, name: str) -> None:
+    FIGURES_DIR.mkdir(parents=True, exist_ok=True)
+    out_path = FIGURES_DIR / name
+    fig.savefig(out_path)
+    print(f"Saved {out_path}")
 
 
 def report_tier1() -> pd.DataFrame | None:
@@ -74,6 +93,18 @@ def report_tier1() -> pd.DataFrame | None:
     else:
         print("  (not enough models/images yet for a pairwise comparison)")
 
+    _save_figure(plot_leaderboard(image_df, ci_f1), "tier1_leaderboard.png")
+    _save_figure(plot_field_heatmap(field_summary), "tier1_field_heatmap.png")
+
+    # model_field_summary() only aggregates precision/recall/f1; pairing_accuracy
+    # and value_accuracy live only on the raw nutrition rows of field_df.
+    nutrition_rows = field_df[field_df["field"] == "nutrition"]
+    if not nutrition_rows.empty:
+        nutrition_summary = nutrition_rows.groupby("model_key").agg(
+            f1=("f1", "mean"), pairing_accuracy=("pairing_accuracy", "mean"), value_accuracy=("value_accuracy", "mean"),
+        ).reset_index()
+        _save_figure(plot_nutrition_breakdown(nutrition_summary), "tier1_nutrition_breakdown.png")
+
     return image_df
 
 
@@ -86,6 +117,16 @@ def report_tier2() -> None:
     summary = model_summary(image_df)
     print(summary.sort_values(["model_key", "condition"]).to_string(index=False))
     summary.to_csv(SCORED_RESULTS_DIR / "tier2_condition_summary.csv", index=False)
+
+    # Excludes en_one on purpose -- not part of the active ablation (see
+    # prompts.py); any leftover cached rows from before that decision would
+    # otherwise skew the pivot below.
+    active = summary[summary["condition"].isin(["vi_zero", "vi_one", "en_zero"])]
+    pivot = active.pivot(index="model_key", columns="condition", values="mean_macro_field_f1")
+    if {"vi_zero", "vi_one", "en_zero"}.issubset(pivot.columns):
+        pivot["shot_effect"] = pivot["vi_one"] - pivot["vi_zero"]
+        pivot["language_effect"] = pivot["en_zero"] - pivot["vi_zero"]
+        _save_figure(plot_prompt_sensitivity(pivot), "tier2_prompt_sensitivity.png")
 
 
 def report_tier3(tier1_image_df: pd.DataFrame | None) -> None:
@@ -120,31 +161,35 @@ def report_tier3(tier1_image_df: pd.DataFrame | None) -> None:
     print(curve.to_string(index=False))
     curve.to_csv(SCORED_RESULTS_DIR / "tier3_degradation_curve.csv", index=False)
 
-    try:
-        import matplotlib.pyplot as plt
+    _save_figure(plot_degradation_curve(curve), "tier3_degradation_curve.png")
 
-        FIGURES_DIR.mkdir(parents=True, exist_ok=True)
-        kinds = sorted(curve["kind"].unique())
-        fig, axes = plt.subplots(1, len(kinds), figsize=(5 * len(kinds), 4), sharey=True)
-        axes = [axes] if len(kinds) == 1 else axes
-        for ax, kind in zip(axes, kinds):
-            sub = curve[curve["kind"] == kind]
-            for model_key, g in sub.groupby("model_key"):
-                g = g.sort_values("severity")
-                ax.plot(g["severity"], g["mean_macro_field_f1"], marker="o", label=model_key)
-            ax.set_title(kind)
-            ax.set_xlabel("severity (0 = clean)")
-        axes[0].set_ylabel("mean macro field-level F1")
-        axes[0].legend(fontsize=8)
-        fig.tight_layout()
-        out_path = FIGURES_DIR / "degradation_curve.png"
-        fig.savefig(out_path, dpi=150)
-        print(f"\nSaved degradation curve figure to {out_path}")
-    except ImportError:
-        print("matplotlib not available — skipped figure generation.")
+
+def report_tier4() -> None:
+    print("\n=== Tier 4: error taxonomy ===")
+    df = _load("error_taxonomy.csv")
+    if df is None:
+        print("Run 'main.py error-sample' first.")
+        return
+    shares = pd.crosstab(df["model_key"], df["error_category"], normalize="index")
+    _save_figure(plot_error_taxonomy(shares), "tier4_error_taxonomy.png")
+
+
+def report_cost(tier1_image_df: pd.DataFrame | None) -> None:
+    print("\n=== Cost vs. accuracy ===")
+    if tier1_image_df is None or not LEDGER_PATH.exists():
+        print(f"  (skipping, need Tier 1 scores and {LEDGER_PATH})")
+        return
+    ledger = pd.read_csv(LEDGER_PATH)
+    cost_by_model = ledger.groupby("model_key")["cost_usd"].sum()
+    macro_f1 = tier1_image_df.groupby("model_key")["macro_field_f1"].mean()
+    print(cost_by_model.reindex(macro_f1.index).round(2).to_string())
+    _save_figure(plot_cost_effectiveness(cost_by_model, macro_f1), "cost_effectiveness.png")
 
 
 def run(args: argparse.Namespace) -> None:
+    setup_style()
     tier1_image_df = report_tier1()
     report_tier2()
     report_tier3(tier1_image_df)
+    report_tier4()
+    report_cost(tier1_image_df)
