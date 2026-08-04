@@ -54,7 +54,6 @@ def setup_style() -> None:
         "savefig.dpi": 300,
         "savefig.bbox": "tight",
         "font.size": 10,
-        "axes.titlesize": 11,
         "axes.labelsize": 10,
         "axes.spines.top": False,
         "axes.spines.right": False,
@@ -92,7 +91,6 @@ def plot_leaderboard(image_df: pd.DataFrame, ci_df: pd.DataFrame):
     ax.set_xticklabels(order, rotation=30, ha="right")
     ax.set_ylabel("Macro field-level F1 (lenient)")
     ax.set_ylim(0, 1)
-    ax.set_title("Tier 1 — main benchmark (95% bootstrap CI)")
     fig.tight_layout()
     return fig
 
@@ -119,7 +117,6 @@ def plot_field_heatmap(field_summary: pd.DataFrame):
             ax.text(j, i, f"{val:.2f}", ha="center", va="center",
                      color="white" if val < 0.5 else "black", fontsize=7)
     fig.colorbar(im, ax=ax, label="F1", shrink=0.8)
-    ax.set_title("Tier 1 — per-field F1 by model")
     fig.tight_layout()
     return fig
 
@@ -134,14 +131,12 @@ def plot_nutrition_breakdown(nutrition_df: pd.DataFrame):
     metrics = [("f1", "Name F1"), ("pairing_accuracy", "Pairing accuracy"), ("value_accuracy", "Value accuracy")]
     fig, axes = plt.subplots(1, 3, figsize=(12, 4))
     x = np.arange(len(order))
-    for ax, (col, title) in zip(axes, metrics):
+    for ax, (col, label) in zip(axes, metrics):
         ax.bar(x, df[col].to_numpy(), color=[_color(m) for m in order], edgecolor="black", linewidth=0.5)
-        ax.set_title(title)
+        ax.set_ylabel(label)
         ax.set_xticks(x)
         ax.set_xticklabels(order, rotation=45, ha="right")
         ax.set_ylim(0, 1)
-    axes[0].set_ylabel("Score")
-    fig.suptitle("Tier 1 — nutrition name/value pairing breakdown")
     fig.tight_layout()
     return fig
 
@@ -159,13 +154,12 @@ def plot_prompt_sensitivity(effects: pd.DataFrame):
 
     fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
     y = np.arange(len(order))
-    panels = [("shot_effect", "Shot effect (vi_one − vi_zero)"),
-              ("language_effect", "Language effect (en_zero − vi_zero)")]
-    for ax, (col, title) in zip(axes, panels):
+    panels = [("shot_effect", "Δ macro field F1 (vi_one − vi_zero)"),
+              ("language_effect", "Δ macro field F1 (en_zero − vi_zero)")]
+    for ax, (col, xlabel) in zip(axes, panels):
         ax.barh(y, df[col].to_numpy(), color=[_color(m) for m in order], edgecolor="black", linewidth=0.5)
         ax.axvline(0, color="black", linewidth=0.8)
-        ax.set_title(title)
-        ax.set_xlabel("Δ macro field F1")
+        ax.set_xlabel(xlabel)
     axes[0].set_yticks(y)
     axes[0].set_yticklabels(order)
     fig.tight_layout()
@@ -185,8 +179,7 @@ def plot_degradation_curve(curve: pd.DataFrame):
             g = g.sort_values("severity")
             ax.plot(g["severity"], g["mean_macro_field_f1"], marker="o",
                      color=_color(model_key), label=model_key)
-        ax.set_title(kind)
-        ax.set_xlabel("severity (0 = clean)")
+        ax.set_xlabel(f"{kind} severity (0 = clean)")
     axes[0].set_ylabel("mean macro field-level F1")
     axes[0].set_ylim(0, 1)
     axes[-1].legend(bbox_to_anchor=(1.02, 1), loc="upper left")
@@ -213,7 +206,6 @@ def plot_error_taxonomy(shares: pd.DataFrame):
     ax.set_ylabel("Share of model's errors")
     ax.set_ylim(0, 1)
     ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
-    ax.set_title("Tier 4 — error category distribution by model")
     fig.tight_layout()
     return fig
 
@@ -230,6 +222,5 @@ def plot_cost_effectiveness(cost_by_model: pd.Series, macro_f1: pd.Series):
         ax.annotate(model_key, (cost, f1), textcoords="offset points", xytext=(5, 4), fontsize=8)
     ax.set_xlabel("Total cost so far (USD, all tiers)")
     ax.set_ylabel("Macro field-level F1 (Tier 1)")
-    ax.set_title("Cost vs. accuracy")
     fig.tight_layout()
     return fig
