@@ -19,7 +19,7 @@ Usage:
     uv run main.py prompt-sensitivity --start-id 1 --end-id 3
     uv run main.py perturbation --start-id 1 --end-id 3 --resume
     uv run main.py error-sample --sample-size 300
-    uv run main.py score-taxonomy
+    uv run main.py label-agreement
     uv run main.py report
 """
 
@@ -27,14 +27,14 @@ from __future__ import annotations
 
 import argparse
 
-from vifoodlabel.cli import benchmark, error_sample, perturbation, prompt_sensitivity, report, score_taxonomy
+from vifoodlabel.cli import benchmark, error_sample, label_agreement, perturbation, prompt_sensitivity, report
 
 SUBCOMMANDS = {
     "benchmark": benchmark,
     "prompt-sensitivity": prompt_sensitivity,
     "perturbation": perturbation,
     "error-sample": error_sample,
-    "score-taxonomy": score_taxonomy,
+    "label-agreement": label_agreement,
     "report": report,
 }
 

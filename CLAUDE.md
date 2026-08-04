@@ -17,7 +17,9 @@ roster) before touching scoring logic or experiment design.
   Install with `uv sync`.
 - **Single CLI entry point: `main.py` at repo root**, via subcommands
   (`benchmark`, `prompt-sensitivity`, `perturbation`, `error-sample`,
-  `score-taxonomy`, `report` — one per experimental tier). Run with
+  `report` — one per experimental tier, plus `label-agreement`: a
+  data-quality check comparing the ground truth against a double-annotated
+  control subset, not one of the 4 tiers). Run with
   `uv run main.py <subcommand> --help`.
 - Each subcommand's argument parsing + orchestration lives in its own module
   under `src/vifoodlabel/cli/` (`benchmark.py`, `prompt_sensitivity.py`,
@@ -72,5 +74,6 @@ roster) before touching scoring logic or experiment design.
   periodic recalibration to stay accurate and wasn't relied on) -- actual
   spend is tracked from real per-call token usage in
   `results/cost_ledger.csv`, cross-checked against the OpenRouter
-  dashboard. `--resume` (prints cached vs. remaining count) is cheap to run
-  first too.
+  dashboard. **`--resume` does not stop after printing cache coverage** —
+  it falls through into the real run exactly like omitting it, so it's not
+  a no-cost status check; use `--dry-run` for that.

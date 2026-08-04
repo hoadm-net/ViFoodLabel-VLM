@@ -115,22 +115,53 @@ conditions (3 kinds × 3 severities).
 ## Tier 4 — error taxonomy
 
 `uv run main.py error-sample` samples incorrect (image, model, field)
-instances from a prior run into two identical CSVs
-(`error_sample_coder_{a,b}.csv`) with blank `error_category`/`notes` columns
-for two independent human coders. Suggested category vocabulary: diacritics,
-wrong unit, pairing error (cross-row swap), missing additive, wrong language
-(right content, wrong-language portion of a multi-language label — see
-[annotation-guidelines.md](annotation-guidelines.md)), hallucination, wrong
-value, missing field, output truncated (hit `max_tokens`, not a real
-extraction failure — see `client.py`'s `finish_reason` tracking), generation
-loop (Vintern-only, auto-detected and cut short — see [inference
-parameters](#inference-parameters-every-call-every-tier) above), malformed
-JSON.
+instances from a prior run and **automatically classifies each one** into
+the error-category vocabulary (see `src/vifoodlabel/error_taxonomy.py` for
+the exact rules) — deterministic, not human-coded. Writes one CSV
+(`error_taxonomy.csv`) with `error_category` already filled in and a
+`low_confidence` flag for rows worth spot-checking by hand first.
 
-`uv run main.py score-taxonomy` computes Cohen's κ between the two completed
-sheets, writes a per-row agreement table (agreed rows get a final category;
-disagreements are flagged `NEEDS_ADJUDICATION` for manual resolution), and a
-preliminary category-distribution table over the agreed rows.
+Category vocabulary: `diacritics`, `wrong_unit`, `pairing_error` (cross-row
+swap), `missing_additive`, `hallucination` (also stands in for what would be
+"wrong language" — see below), `wrong_value`, `missing_field`,
+`output_truncated` (hit `max_tokens` — see `client.py`'s `finish_reason`
+tracking), `generation_loop` (Vintern-only, auto-detected and cut short —
+see [inference parameters](#inference-parameters-every-call-every-tier)
+above), `malformed_json`.
+
+Most categories follow directly from signals the matching engine
+(`matching.py`) already computes for scoring — e.g. `diacritics` from
+`ScalarMatchResult.diacritic_only_mismatch`, `pairing_error` from
+`NutritionMatchResult.pairing_accuracy`. Two categories from earlier drafts
+of this taxonomy have no reliable automatic signal and are **not** assigned
+by rule: "wrong language" (right content, taken from a non-Vietnamese
+portion of a multi-language label — see
+[annotation-guidelines.md](annotation-guidelines.md)) would need a record of
+what non-Vietnamese text was also on the label, which ground truth doesn't
+capture, so those cases fall under `hallucination`/`wrong_value` like any
+other mismatch instead. `hallucination` itself is the one heuristic category
+here (near-zero text similarity to ground truth, or content where the label
+had none at all) and is the least reliable rule in the module — flagged via
+`low_confidence` for that reason. If spot-checking finds the auto-assigned
+categories wrong too often, the fix is revisiting the rules in
+`error_taxonomy.py`, not adding a human double-coding step back.
+
+## Label agreement — ground-truth annotation reliability
+
+`uv run main.py label-agreement` is **not one of the four tiers** — it's a
+data-quality check on the ground truth itself, run whenever a control subset
+exists: `data/labels/control/*.json`, a second independent annotation of a
+random subset of images that also have a primary label in `data/labels/`.
+
+Reuses the exact same field matchers as model scoring
+(`metrics.score_prediction`), treating the control annotation as a
+"prediction" against the primary label as "ground truth" — the reported
+precision/recall/F1 numbers mean exactly what they'd mean for a model,
+interpreted here as inter-annotator agreement. Headline reliability is two
+numbers, deliberately not broken down further: mean `macro_field_f1` (overall
+agreement) and mean nutrition `pairing_accuracy` (agreement on name/value
+pairing specifically, the RQ's central concern). Output:
+`results/scored/label_agreement_{field_scores,image_scores}.csv`.
 
 ## Combining results
 

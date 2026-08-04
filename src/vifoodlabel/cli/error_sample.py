@@ -1,24 +1,31 @@
-"""Tier 4a -- sample incorrect fields from a prior run into a double-coding sheet.
+"""Tier 4a -- sample incorrect fields from a prior run and automatically
+classify each into the error-category taxonomy (see error_taxonomy.py for
+the rules and which categories are heuristic/low-confidence).
 
 Reads from the on-disk cache only (no API calls) -- run `benchmark` first.
-Produces two identical CSVs (error_sample_coder_a.csv / _coder_b.csv) with
-blank `error_category` / `notes` columns for two independent human coders.
-Run `score-taxonomy` afterward to compute Cohen's kappa.
+Produces one CSV (error_taxonomy.csv) with `error_category` already filled
+in and a `low_confidence` flag marking rows worth spot-checking by hand
+first. Classification is deterministic -- there's no human-coding step or
+inter-coder Cohen's kappa here; if spot-checking finds the error rate too
+high, the rules in error_taxonomy.py need revisiting, not more coders.
 
-Suggested categories (free text, but keep these as the shared vocabulary):
+Category vocabulary (see error_taxonomy.py for exact assignment rules):
   diacritics       - content right, Vietnamese diacritics wrong
   wrong_unit        - number right, unit wrong/missing
   pairing_error      - nutrition value correct but attached to the wrong name
   missing_additive     - an additive present on the label was dropped
-  wrong_language        - correct content, but taken from a non-Vietnamese
-                          portion of a multi-language label instead of the
-                          Vietnamese text (see docs/annotation-guidelines.md)
   hallucination          - content not present on the label at all
+                          (low-confidence heuristic -- see error_taxonomy.py;
+                          also covers what would be "wrong_language", since
+                          ground truth has no record of non-Vietnamese label
+                          text to confirm that distinction automatically)
   wrong_value              - any other incorrect value/content
   missing_field               - field left empty when the label had content
   output_truncated              - response hit the max_tokens ceiling;
                                   missing/cut-off fields aren't the model's
                                   choice (see structural_issues column)
+  generation_loop                - self-hosted-only: cut short after an
+                                    auto-detected repetition loop
   malformed_json                  - see json_valid/api_error columns
 """
 
@@ -29,12 +36,11 @@ import random
 
 from vifoodlabel.cli.common import add_dataset_args, resolve_dataset, resolve_selected_models
 from vifoodlabel.config import SCORED_RESULTS_DIR
+from vifoodlabel.error_taxonomy import LOW_CONFIDENCE_CATEGORIES, classify_error
 from vifoodlabel.io_utils import labeled_only
 from vifoodlabel.prompts import CANONICAL_CONDITION
 from vifoodlabel.runner import load_cached_records, score_records
 from vifoodlabel.schema import LIST_FIELDS, NUTRITION_FIELD, SCALAR_FIELDS, field_value_str
-
-CODING_COLUMNS = ["error_category", "notes"]
 
 
 def _iter_incorrect_fields(scores):
@@ -75,6 +81,7 @@ def run(args: argparse.Namespace) -> None:
     scores = score_records(records)
     rows = []
     for s, field, field_type, score in _iter_incorrect_fields(scores):
+        category = classify_error(s, field, field_type)
         rows.append({
             "image_id": s.image_id,
             "model_key": s.model_key,
@@ -87,6 +94,9 @@ def run(args: argparse.Namespace) -> None:
             "json_valid": s.json_valid,
             "api_error": s.api_error or "",
             "structural_issues": "; ".join(s.structural_issues),
+            "error_category": category,
+            "low_confidence": category in LOW_CONFIDENCE_CATEGORIES,
+            "notes": "",
         })
 
     if not rows:
@@ -100,14 +110,20 @@ def run(args: argparse.Namespace) -> None:
     import pandas as pd
 
     df = pd.DataFrame(sample)
-    for col in CODING_COLUMNS:
-        df[col] = ""
-
     SCORED_RESULTS_DIR.mkdir(parents=True, exist_ok=True)
-    for coder in ("a", "b"):
-        out_path = SCORED_RESULTS_DIR / f"error_sample_coder_{coder}.csv"
-        df.to_csv(out_path, index=False)
-        print(f"Wrote {len(df)} rows to {out_path}")
+    out_path = SCORED_RESULTS_DIR / "error_taxonomy.csv"
+    df.to_csv(out_path, index=False)
 
     print(f"\n{len(rows)} total incorrect (image, model, field) instances found; sampled {len(sample)}.")
-    print("Have two coders independently fill in error_category/notes, then run 'main.py score-taxonomy'.")
+    print(f"Wrote {len(df)} auto-classified rows to {out_path}")
+    print(f"{int(df['low_confidence'].sum())} rows flagged low_confidence -- spot-check these first (see error_taxonomy.py).")
+
+    # Per model, not pooled -- error mix differs a lot by model (e.g. only
+    # Vintern ever hits generation_loop), so a single pooled distribution
+    # would mostly just reflect whichever model produced the most errors.
+    counts = pd.crosstab(df["model_key"], df["error_category"])
+    shares = pd.crosstab(df["model_key"], df["error_category"], normalize="index")
+    print("\nError category counts per model:")
+    print(counts.to_string())
+    print("\nError category share within each model's own errors:")
+    print(shares.round(3).to_string())
