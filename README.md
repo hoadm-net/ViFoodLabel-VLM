@@ -102,8 +102,14 @@ error handling — no network calls, nothing touches the real `results/`.
 Several tests are explicit regressions for real scoring bugs found while
 running the benchmark (see each test file's module docstring).
 
+## Dataset
+
+The 600-image dataset (`data/`) is not included in this repository — it's
+released separately on [Mendeley Data](https://data.mendeley.com/datasets/v97x4ys84h/2).
+See [docs/dataset.md](docs/dataset.md) for the schema and annotation
+methodology.
+
 ## License
 
 Code is released under the [MIT License](LICENSE). This covers the harness
-only — the dataset (`data/`) is not included in this repository and is
-planned for separate release; see [docs/dataset.md](docs/dataset.md).
+only — see the Dataset section above for the data's own license/terms.

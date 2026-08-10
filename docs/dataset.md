@@ -12,9 +12,8 @@ data/
 ```
 
 `data/` is **not** included in this repository (see the root `.gitignore`) —
-it's real product photography and unpublished ground truth for a paper under
-review. It's tracked locally and will be released separately (e.g. via
-Zenodo/HuggingFace with a DOI) alongside publication.
+it's tracked locally and released separately as its own dataset:
+[Mendeley Data, v2](https://data.mendeley.com/datasets/v97x4ys84h/2).
 
 ## Ground-truth schema
 
