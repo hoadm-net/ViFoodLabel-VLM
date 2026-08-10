@@ -102,4 +102,6 @@ running the benchmark (see each test file's module docstring).
 
 ## License
 
-No license has been added yet; all rights reserved pending publication.
+Code is released under the [MIT License](LICENSE). This covers the harness
+only — the dataset (`data/`) is not included in this repository and is
+planned for separate release; see [docs/dataset.md](docs/dataset.md).
