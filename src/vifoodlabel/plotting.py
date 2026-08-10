@@ -1,15 +1,15 @@
-"""Shared matplotlib style + chart builders for the paper's figures.
+"""Chart builders for the manuscript's figures. Style/identity constants
+live in figstyle.py and are imported here, never redefined -- see that
+module's docstring for the submission constraints this jointly satisfies.
 
-One consistent look across every figure: the same model -> color mapping
-regardless of which chart or model ordering is in play, the same
-fonts/DPI/margins, models within a chart always ordered by Tier 1 macro F1
-(descending) so the "leaderboard order" reads the same way everywhere.
-Colors are the Okabe-Ito palette (colorblind-safe, standard for scientific
-figures).
-
-Each `plot_*` function takes an already-aggregated DataFrame/Series (built
-by report.py from the scored CSVs) and returns a Figure; report.py owns
-deciding what to compute and where to save it.
+Five main-text figures (Fig1-Fig5, one per tier plus the nutrition
+decomposition that carries the RQ) and one supplementary figure
+(cost-effectiveness). Each `plot_fig*` function takes an already-aggregated
+DataFrame/Series (built by report.py from the scored CSVs) and returns a
+Figure; report.py owns computing the inputs and saving the output.
+No in-figure titles -- captions belong in the manuscript text (report.py
+writes them to results/figures/captions.md). Panel letters (a/b/c) are not
+titles and are added directly.
 """
 
 from __future__ import annotations
@@ -17,192 +17,205 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from vifoodlabel.figstyle import (
+    CATEGORY_COLOR,
+    CATEGORY_HATCH,
+    MODEL_COLOR,
+    MODEL_LINESTYLE,
+    MODEL_MARKER,
+    MODEL_ORDER,
+    WIDTH_DOUBLE,
+    WIDTH_SINGLE,
+    model_color,
+)
 from vifoodlabel.schema import LIST_FIELDS, NUTRITION_FIELD, SCALAR_FIELDS
 
-MODEL_COLORS: dict[str, str] = {
-    "gpt-5.4": "#E69F00",
-    "claude-sonnet-5": "#56B4E9",
-    "grok-4.20": "#009E73",
-    "qwen3-vl-235b": "#F0E442",
-    "glm-4.6v": "#0072B2",
-    "mimo-v2.5": "#D55E00",
-    "vintern-3b": "#CC79A7",
-}
-
-ERROR_CATEGORY_COLORS: dict[str, str] = {
-    "wrong_value": "#0072B2",
-    "hallucination": "#D55E00",
-    "missing_field": "#E69F00",
-    "missing_additive": "#F0E442",
-    "generation_loop": "#CC79A7",
-    "output_truncated": "#56B4E9",
-    "pairing_error": "#009E73",
-    "diacritics": "#999999",
-    "wrong_unit": "#000000",
-    "malformed_json": "#8C510A",
-}
-
-_DEFAULT_COLOR = "#333333"
+JSON_VALIDITY_FLAG_THRESHOLD = 0.9  # below this, a point gets circled on Fig4
 
 
-def setup_style() -> None:
-    """Call once before drawing any figure."""
+def _ordered(models: pd.Index | list[str]) -> list[str]:
+    present = set(models)
+    return [m for m in MODEL_ORDER if m in present]
+
+
+def _panel_label(ax, letter: str) -> None:
+    ax.text(-0.12, 1.02, letter, transform=ax.transAxes, fontsize=10, fontweight="bold", va="bottom")
+
+
+def _text_color(rgba) -> str:
+    r, g, b = rgba[:3]
+    lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+    return "black" if lum > 0.55 else "white"
+
+
+def plot_fig1_heatmap(field_summary: pd.DataFrame, macro_f1: pd.Series):
+    """Fig 1: per-field F1 heatmap, one extra "macro" column."""
     import matplotlib.pyplot as plt
-
-    plt.rcParams.update({
-        "figure.dpi": 120,
-        "savefig.dpi": 300,
-        "savefig.bbox": "tight",
-        "font.size": 10,
-        "axes.labelsize": 10,
-        "axes.spines.top": False,
-        "axes.spines.right": False,
-        "axes.grid": True,
-        "axes.grid.axis": "y",
-        "grid.alpha": 0.3,
-        "legend.fontsize": 8,
-        "legend.frameon": False,
-    })
-
-
-def model_order(image_df: pd.DataFrame) -> list[str]:
-    """Canonical model ordering for every chart: Tier 1 macro F1, descending."""
-    means = image_df.groupby("model_key")["macro_field_f1"].mean().sort_values(ascending=False)
-    return list(means.index)
-
-
-def _color(model_key: str) -> str:
-    return MODEL_COLORS.get(model_key, _DEFAULT_COLOR)
-
-
-def plot_leaderboard(image_df: pd.DataFrame, ci_df: pd.DataFrame):
-    """Tier 1 headline: macro field F1 per model, with bootstrap 95% CI."""
-    import matplotlib.pyplot as plt
-
-    order = model_order(image_df)
-    ci = ci_df.set_index("model_key").loc[order]
-
-    fig, ax = plt.subplots(figsize=(6, 4))
-    x = np.arange(len(order))
-    means = ci["mean"].to_numpy()
-    errs = np.vstack([means - ci["ci_low"].to_numpy(), ci["ci_high"].to_numpy() - means])
-    ax.bar(x, means, yerr=errs, capsize=3, color=[_color(m) for m in order], edgecolor="black", linewidth=0.5)
-    ax.set_xticks(x)
-    ax.set_xticklabels(order, rotation=30, ha="right")
-    ax.set_ylabel("Macro field-level F1 (lenient)")
-    ax.set_ylim(0, 1)
-    fig.tight_layout()
-    return fig
-
-
-def plot_field_heatmap(field_summary: pd.DataFrame):
-    """Model x field F1 heatmap (Tier 1)."""
-    import matplotlib.pyplot as plt
+    from matplotlib import colormaps
 
     fields = SCALAR_FIELDS + LIST_FIELDS + [NUTRITION_FIELD]
-    order = field_summary.groupby("model_key")["f1"].mean().sort_values(ascending=False).index.tolist()
+    order = _ordered(field_summary["model_key"].unique())
     pivot = field_summary.pivot(index="model_key", columns="field", values="f1").reindex(index=order, columns=fields)
+    macro = macro_f1.reindex(order)
+    cmap = colormaps["viridis"]
 
-    fig, ax = plt.subplots(figsize=(7, 0.55 * len(order) + 1.5))
-    im = ax.imshow(pivot.to_numpy(dtype=float), cmap="viridis", vmin=0, vmax=1, aspect="auto")
-    ax.set_xticks(range(len(fields)))
-    ax.set_xticklabels(fields, rotation=30, ha="right")
-    ax.set_yticks(range(len(order)))
-    ax.set_yticklabels(order)
+    fig, (ax_fields, ax_macro) = plt.subplots(
+        1, 2, figsize=(WIDTH_DOUBLE, 0.35 * len(order) + 1.3),
+        gridspec_kw={"width_ratios": [len(fields), 1], "wspace": 0.1},
+    )
+    im = ax_fields.imshow(pivot.to_numpy(dtype=float), cmap=cmap, vmin=0, vmax=1, aspect="auto")
+    ax_fields.set_xticks(range(len(fields)))
+    ax_fields.set_xticklabels(fields, rotation=30, ha="right")
+    ax_fields.set_yticks(range(len(order)))
+    ax_fields.set_yticklabels(order)
     for i in range(len(order)):
         for j in range(len(fields)):
             val = pivot.to_numpy()[i, j]
             if np.isnan(val):
                 continue
-            ax.text(j, i, f"{val:.2f}", ha="center", va="center",
-                     color="white" if val < 0.5 else "black", fontsize=7)
-    fig.colorbar(im, ax=ax, label="F1", shrink=0.8)
-    fig.tight_layout()
+            ax_fields.text(j, i, f"{val:.2f}", ha="center", va="center", color=_text_color(cmap(val)), fontsize=8)
+
+    macro_vals = macro.to_numpy(dtype=float)
+    ax_macro.imshow(macro_vals.reshape(-1, 1), cmap=cmap, vmin=0, vmax=1, aspect="auto")
+    ax_macro.set_xticks([0])
+    ax_macro.set_xticklabels(["macro"], rotation=30, ha="right")
+    ax_macro.set_yticks([])
+    for i, val in enumerate(macro_vals):
+        ax_macro.text(0, i, f"{val:.2f}", ha="center", va="center", color=_text_color(cmap(val)), fontsize=8)
+
+    fig.colorbar(im, ax=[ax_fields, ax_macro], label="F1", shrink=0.8)
     return fig
 
 
-def plot_nutrition_breakdown(nutrition_df: pd.DataFrame):
-    """3-panel small multiples: name F1, pairing accuracy, value accuracy."""
+def plot_fig2_nutrition(nutrition_df: pd.DataFrame):
+    """Fig 2: nutrition decomposition, 3 panels (a name F1, b pairing
+    accuracy on a truncated scale, c value accuracy). Model order is
+    data-driven (name F1 descending), identical across all three panels."""
     import matplotlib.pyplot as plt
 
     order = nutrition_df.sort_values("f1", ascending=False)["model_key"].tolist()
     df = nutrition_df.set_index("model_key").loc[order]
-
-    metrics = [("f1", "Name F1"), ("pairing_accuracy", "Pairing accuracy"), ("value_accuracy", "Value accuracy")]
-    fig, axes = plt.subplots(1, 3, figsize=(12, 4))
     x = np.arange(len(order))
-    for ax, (col, label) in zip(axes, metrics):
-        ax.bar(x, df[col].to_numpy(), color=[_color(m) for m in order], edgecolor="black", linewidth=0.5)
-        ax.set_ylabel(label)
+    colors = [MODEL_COLOR.get(m, "#333333") for m in order]
+
+    fig, (ax_a, ax_b, ax_c) = plt.subplots(1, 3, figsize=(WIDTH_DOUBLE, 2.4))
+
+    ax_a.bar(x, df["f1"].to_numpy(), color=colors, edgecolor="black", linewidth=0.5)
+    ax_a.set_ylabel("Name F1")
+    ax_a.set_ylim(0, 1)
+    _panel_label(ax_a, "a")
+
+    for i, m in enumerate(order):
+        ax_b.plot(i, df.loc[m, "pairing_accuracy"], marker=MODEL_MARKER.get(m, "o"),
+                   color=MODEL_COLOR.get(m, "#333333"), markeredgecolor="black", markeredgewidth=0.4, markersize=5)
+    ax_b.set_ylabel("Pairing accuracy")
+    ax_b.set_ylim(0.95, 1.00)
+    _panel_label(ax_b, "b")
+
+    ax_c.bar(x, df["value_accuracy"].to_numpy(), color=colors, edgecolor="black", linewidth=0.5)
+    ax_c.set_ylabel("Value accuracy")
+    ax_c.set_ylim(0, 1)
+    _panel_label(ax_c, "c")
+
+    for ax in (ax_a, ax_b, ax_c):
         ax.set_xticks(x)
         ax.set_xticklabels(order, rotation=45, ha="right")
-        ax.set_ylim(0, 1)
     fig.tight_layout()
     return fig
 
 
-def plot_prompt_sensitivity(effects: pd.DataFrame):
-    """Shot effect and language effect vs. the vi_zero baseline, per model.
-
-    `effects`: index=model_key, columns include vi_zero, shot_effect,
-    language_effect (see report.py for how these are derived).
-    """
+def plot_fig3_prompt_sensitivity(effects: pd.DataFrame):
+    """Fig 3: shot effect (a) and instruction-language effect (b) vs. the
+    vi_zero baseline, per model. Both panels share one horizontal scale so
+    bar lengths are visually comparable across panels."""
     import matplotlib.pyplot as plt
 
-    order = effects.sort_values("vi_zero", ascending=False).index.tolist()
+    order = _ordered(effects.index)
     df = effects.loc[order]
-
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4), sharey=True)
     y = np.arange(len(order))
-    panels = [("shot_effect", "Δ macro field F1 (vi_one − vi_zero)"),
-              ("language_effect", "Δ macro field F1 (en_zero − vi_zero)")]
-    for ax, (col, xlabel) in zip(axes, panels):
-        ax.barh(y, df[col].to_numpy(), color=[_color(m) for m in order], edgecolor="black", linewidth=0.5)
-        ax.axvline(0, color="black", linewidth=0.8)
-        ax.set_xlabel(xlabel)
-    axes[0].set_yticks(y)
-    axes[0].set_yticklabels(order)
+    colors = [MODEL_COLOR.get(m, "#333333") for m in order]
+    xlim = (-0.09, 0.09)
+
+    fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(WIDTH_DOUBLE, 2.6), sharey=True)
+
+    ax_a.barh(y, df["shot_effect"].to_numpy(), color=colors, edgecolor="black", linewidth=0.5)
+    ax_a.axvline(0, color="black", linewidth=0.8)
+    ax_a.set_xlabel("Δ macro field F1 (vi_one − vi_zero)")
+    ax_a.set_xlim(*xlim)
+    _panel_label(ax_a, "a")
+
+    ax_b.barh(y, df["language_effect"].to_numpy(), color=colors, edgecolor="black", linewidth=0.5)
+    ax_b.axvline(0, color="black", linewidth=0.8)
+    ax_b.set_xlabel("Δ macro field F1 (en_zero − vi_zero)")
+    ax_b.set_xlim(*xlim)
+    _panel_label(ax_b, "b")
+
+    ax_a.set_yticks(y)
+    ax_a.set_yticklabels(order)
     fig.tight_layout()
     return fig
 
 
-def plot_degradation_curve(curve: pd.DataFrame):
-    """Tier 3: macro F1 vs. severity, one subplot per corruption kind."""
+def plot_fig4_degradation(curve: pd.DataFrame):
+    """Fig 4: macro F1 vs. severity, one panel per corruption kind (a blur,
+    b glare, c rotation). Points whose json_validity_rate falls below
+    JSON_VALIDITY_FLAG_THRESHOLD are circled -- a large drop there reflects
+    parse failures, not necessarily weaker extraction, and shouldn't be
+    read as a clean accuracy point without that caveat."""
     import matplotlib.pyplot as plt
 
-    kinds = sorted(curve["kind"].unique())
-    fig, axes = plt.subplots(1, len(kinds), figsize=(4.5 * len(kinds), 4), sharey=True)
+    kinds = sorted(curve["kind"].unique())  # blur, glare, rotation
+    letters = "abcdefgh"
+    fig, axes = plt.subplots(1, len(kinds), figsize=(WIDTH_DOUBLE, 2.6), sharey=True)
     axes = [axes] if len(kinds) == 1 else list(axes)
-    for ax, kind in zip(axes, kinds):
+
+    for ax, kind, letter in zip(axes, kinds, letters):
         sub = curve[curve["kind"] == kind]
-        for model_key, g in sub.groupby("model_key"):
-            g = g.sort_values("severity")
-            ax.plot(g["severity"], g["mean_macro_field_f1"], marker="o",
-                     color=_color(model_key), label=model_key)
-        ax.set_xlabel(f"{kind} severity (0 = clean)")
-    axes[0].set_ylabel("mean macro field-level F1")
-    axes[0].set_ylim(0, 1)
+        for model_key in _ordered(sub["model_key"].unique()):
+            g = sub[sub["model_key"] == model_key].sort_values("severity")
+            ax.plot(
+                g["severity"], g["mean_macro_field_f1"],
+                marker=MODEL_MARKER.get(model_key, "o"), linestyle=MODEL_LINESTYLE.get(model_key, "-"),
+                color=model_color(model_key), label=model_key,
+            )
+            if "json_valid_rate" in g:
+                flagged = g[g["json_valid_rate"] < JSON_VALIDITY_FLAG_THRESHOLD]
+                if not flagged.empty:
+                    ax.scatter(
+                        flagged["severity"], flagged["mean_macro_field_f1"],
+                        s=140, facecolors="none", edgecolors="black", linewidths=1.0, zorder=5,
+                    )
+        ax.set_xlabel(f"{kind} severity")
+        ax.set_xticks([0, 1, 2, 3])
+        ax.set_ylim(0, 0.9)
+        _panel_label(ax, letter)
+
+    axes[0].set_ylabel("macro field F1")
     axes[-1].legend(bbox_to_anchor=(1.02, 1), loc="upper left")
     fig.tight_layout()
     return fig
 
 
-def plot_error_taxonomy(shares: pd.DataFrame):
-    """100% stacked bar: share of each model's errors per category."""
+def plot_fig5_error_taxonomy(shares: pd.DataFrame):
+    """Fig 5: 100%-stacked bar, share of each model's errors per category.
+    `shares` columns already consolidated to the 6 named categories plus
+    "other" (see report.py) -- full 10-category detail goes in the SI."""
     import matplotlib.pyplot as plt
 
-    categories = [c for c in ERROR_CATEGORY_COLORS if c in shares.columns]
-    df = shares[categories].sort_index()
+    order = _ordered(shares.index)
+    categories = [c for c in CATEGORY_HATCH if c in shares.columns]
+    df = shares.loc[order, categories]
+    x = np.arange(len(order))
 
-    fig, ax = plt.subplots(figsize=(7, 4.5))
+    fig, ax = plt.subplots(figsize=(WIDTH_DOUBLE, 3.2))
     bottom = np.zeros(len(df))
-    x = np.arange(len(df))
     for cat in categories:
         vals = df[cat].to_numpy()
-        ax.bar(x, vals, bottom=bottom, color=ERROR_CATEGORY_COLORS[cat], label=cat, edgecolor="white", linewidth=0.3)
+        ax.bar(x, vals, bottom=bottom, color=CATEGORY_COLOR.get(cat, "#BFBFBF"),
+               edgecolor="black", linewidth=0.4, hatch=CATEGORY_HATCH[cat], label=cat)
         bottom += vals
     ax.set_xticks(x)
-    ax.set_xticklabels(df.index, rotation=30, ha="right")
+    ax.set_xticklabels(order, rotation=30, ha="right")
     ax.set_ylabel("Share of model's errors")
     ax.set_ylim(0, 1)
     ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left")
@@ -211,16 +224,18 @@ def plot_error_taxonomy(shares: pd.DataFrame):
 
 
 def plot_cost_effectiveness(cost_by_model: pd.Series, macro_f1: pd.Series):
-    """Cost (x) vs. macro field F1 (y), one point per model."""
+    """Supplementary: cumulative cost (x) vs. Tier 1 macro F1 (y)."""
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots(figsize=(6, 4.5))
-    for model_key in macro_f1.index:
+    order = _ordered(macro_f1.index)
+    fig, ax = plt.subplots(figsize=(WIDTH_SINGLE, WIDTH_SINGLE))
+    for model_key in order:
         cost = float(cost_by_model.get(model_key, 0.0))
         f1 = float(macro_f1[model_key])
-        ax.scatter(cost, f1, color=_color(model_key), s=80, edgecolor="black", linewidth=0.6, zorder=3)
+        ax.scatter(cost, f1, marker=MODEL_MARKER.get(model_key, "o"), color=model_color(model_key),
+                   s=60, edgecolor="black", linewidth=0.6, zorder=3)
         ax.annotate(model_key, (cost, f1), textcoords="offset points", xytext=(5, 4), fontsize=8)
-    ax.set_xlabel("Total cost so far (USD, all tiers)")
+    ax.set_xlabel("Cumulative cost across all four tiers (USD)")
     ax.set_ylabel("Macro field-level F1 (Tier 1)")
     fig.tight_layout()
     return fig

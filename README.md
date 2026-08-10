@@ -100,18 +100,6 @@ error handling — no network calls, nothing touches the real `results/`.
 Several tests are explicit regressions for real scoring bugs found while
 running the benchmark (see each test file's module docstring).
 
-## Citation
-
-```bibtex
-@article{vifoodlabel-vlm,
-  title   = {ViFoodLabel-VLM: A Benchmark for Zero-Shot Structured Information Extraction from Vietnamese Food Product Labels},
-  journal = {Discover Artificial Intelligence},
-  year    = {2026}
-}
-```
-
-(Placeholder — update once accepted.)
-
 ## License
 
 No license has been added yet; all rights reserved pending publication.
