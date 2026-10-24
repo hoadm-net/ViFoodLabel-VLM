@@ -188,7 +188,7 @@ def plot_fig4_degradation(curve: pd.DataFrame):
                 if not flagged.empty:
                     ax.scatter(
                         flagged["severity"], flagged["mean_macro_field_f1"],
-                        s=140, facecolors="none", edgecolors="black", linewidths=1.0, zorder=5,
+                        s=140, facecolors="none", edgecolors="black", linewidths=1.0, zorder=5, clip_on=False,
                     )
         ax.set_xlabel(f"{kind} severity")
         ax.set_xticks([0, 1, 2, 3])
