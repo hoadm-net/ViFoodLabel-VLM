@@ -29,7 +29,7 @@ from vifoodlabel.metrics import (
     scores_to_dataframe,
     upsert_scored_csv,
 )
-from vifoodlabel.perturbation import all_perturbation_conditions, materialize, perturbation_condition_name
+from vifoodlabel.perturbation import PERTURBATION_TYPES, all_perturbation_conditions, materialize, perturbation_condition_name
 from vifoodlabel.prompts import CANONICAL_LANGUAGE, CANONICAL_SHOT, build_instruction
 from vifoodlabel.runner import RunItem, run_and_score
 
@@ -40,12 +40,16 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     add_dataset_args(parser)
     add_execution_args(parser)
     add_subset_args(parser)
+    parser.add_argument(
+        "--kinds", nargs="*", choices=PERTURBATION_TYPES, default=None,
+        help="Only these corruption kinds (default: all). E.g. --kinds rotation",
+    )
 
 
 def run(args: argparse.Namespace) -> None:
     models = resolve_selected_models(args)
     items = resolve_dataset_with_subset_default(args)
-    conditions = all_perturbation_conditions()
+    conditions = [(k, sev) for k, sev in all_perturbation_conditions() if not args.kinds or k in args.kinds]
     condition_names = [perturbation_condition_name(kind, severity) for kind, severity in conditions]
 
     print(f"Tier 3 perturbation: {len(items)} images x {len(models)} models x {len(conditions)} conditions")

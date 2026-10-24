@@ -6,6 +6,7 @@ import itertools
 
 import numpy as np
 import pandas as pd
+from scipy import stats as scipy_stats
 from statsmodels.stats.contingency_tables import mcnemar
 from statsmodels.stats.multitest import multipletests
 
@@ -87,4 +88,80 @@ def mcnemar_pairwise(
     _, p_holm, _, _ = multipletests(df["p_value"], alpha=holm_alpha, method="holm")
     df["p_holm"] = p_holm
     df[f"significant_at_{holm_alpha}"] = df["p_holm"] < holm_alpha
+    # Plain Bonferroni alongside, for the Holm-vs-Bonferroni comparison
+    # (Holm is uniformly at least as powerful at the same FWER guarantee;
+    # this column shows how much that matters on the actual data).
+    _, p_bonf, _, _ = multipletests(df["p_value"], alpha=holm_alpha, method="bonferroni")
+    df["p_bonferroni"] = p_bonf
+    df[f"significant_bonferroni_at_{holm_alpha}"] = df["p_bonferroni"] < holm_alpha
     return df.sort_values("p_value").reset_index(drop=True)
+
+
+def paired_tests_pairwise(
+    image_df: pd.DataFrame,
+    value_col: str,
+    id_col: str = "image_id",
+    group_col: str = "model_key",
+    alpha: float = 0.05,
+) -> pd.DataFrame:
+    """Pairwise paired tests on a continuous per-image score (e.g. macro
+    field F1), every pair of groups, Holm-corrected within each test family.
+
+    Two tests side by side: the paired t-test (parametric, on the mean
+    difference) and the Wilcoxon signed-rank test (non-parametric). The
+    per-image macro score is bounded in [0, 1], often piles up at the ends,
+    and its paired differences are far from normal -- reporting both shows
+    whether the conclusion depends on that assumption.
+    """
+    pivot = image_df.pivot(index=id_col, columns=group_col, values=value_col)
+    rows = []
+    for a, b in itertools.combinations(list(pivot.columns), 2):
+        sub = pivot[[a, b]].dropna()
+        diff = (sub[a] - sub[b]).to_numpy(dtype=float)
+        t = scipy_stats.ttest_rel(sub[a], sub[b])
+        nonzero = diff[diff != 0]
+        w_p = float(scipy_stats.wilcoxon(nonzero).pvalue) if len(nonzero) > 0 else 1.0
+        rows.append({
+            "group_a": a, "group_b": b, "n": len(sub),
+            "mean_diff": float(diff.mean()), "median_diff": float(np.median(diff)),
+            "t_p_value": float(t.pvalue), "wilcoxon_p_value": w_p,
+        })
+    df = pd.DataFrame(rows)
+    if df.empty:
+        return df
+    for test in ("t", "wilcoxon"):
+        _, p_holm, _, _ = multipletests(df[f"{test}_p_value"], alpha=alpha, method="holm")
+        df[f"{test}_p_holm"] = p_holm
+        df[f"{test}_significant_at_{alpha}"] = p_holm < alpha
+    return df
+
+
+def aggregation_robustness(image_df: pd.DataFrame, value_col: str, group_col: str = "model_key", trim: float = 0.1) -> pd.DataFrame:
+    """Per-group mean, median and `trim`-trimmed mean of a per-image score,
+    with the group's rank under each -- does the model ranking depend on
+    choosing the arithmetic mean as the aggregate?"""
+    g = image_df.groupby(group_col)[value_col]
+    df = pd.DataFrame({
+        "mean": g.mean(),
+        "median": g.median(),
+        f"trimmed_mean_{int(trim * 100)}": g.apply(lambda v: float(scipy_stats.trim_mean(v, trim))),
+        "std": g.std(),
+        "n": g.size(),
+    })
+    for col in ["mean", "median", f"trimmed_mean_{int(trim * 100)}"]:
+        df[f"rank_{col}"] = df[col].rank(ascending=False, method="min").astype(int)
+    return df.sort_values("mean", ascending=False).reset_index()
+
+
+def paired_bootstrap_diff(
+    a: np.ndarray | list[float],
+    b: np.ndarray | list[float],
+    n_resamples: int = DEFAULT_N_RESAMPLES,
+    ci: float = DEFAULT_CI,
+    seed: int = DEFAULT_SEED,
+) -> dict:
+    """Bootstrap CI of mean(a - b) for paired per-image scores -- the
+    per-condition change relative to a baseline on the same images."""
+    diff = np.asarray(a, dtype=float) - np.asarray(b, dtype=float)
+    r = bootstrap_ci(diff, n_resamples=n_resamples, ci=ci, seed=seed)
+    return {"mean_diff": r["mean"], "diff_ci_low": r["ci_low"], "diff_ci_high": r["ci_high"], "n": r["n"]}

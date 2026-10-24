@@ -82,3 +82,66 @@ class TestMcnemarPairwise:
         df = pd.DataFrame({"image_id": [], "model_key": [], "correct": []})
         result = mcnemar_pairwise(df)
         assert result.empty
+
+
+class TestMcnemarBonferroni:
+    def test_bonferroni_never_more_lenient_than_holm(self):
+        from vifoodlabel.stats import mcnemar_pairwise
+
+        rows = []
+        for i in range(60):
+            rows += [
+                {"image_id": f"{i:04d}", "model_key": "a", "correct": 1},
+                {"image_id": f"{i:04d}", "model_key": "b", "correct": int(i % 3 == 0)},
+                {"image_id": f"{i:04d}", "model_key": "c", "correct": int(i % 2 == 0)},
+            ]
+        df = mcnemar_pairwise(pd.DataFrame(rows))
+        assert (df["p_bonferroni"] >= df["p_holm"] - 1e-12).all()
+
+
+class TestPairedTests:
+    def _image_df(self):
+        rows = []
+        for i in range(40):
+            rows.append({"image_id": f"{i:04d}", "model_key": "strong", "macro_field_f1": 0.8 + 0.001 * i})
+            rows.append({"image_id": f"{i:04d}", "model_key": "weak", "macro_field_f1": 0.3 + 0.002 * i})
+            rows.append({"image_id": f"{i:04d}", "model_key": "strong_twin", "macro_field_f1": 0.8 + 0.001 * i})
+        return pd.DataFrame(rows)
+
+    def test_clear_difference_is_significant_in_both_tests(self):
+        from vifoodlabel.stats import paired_tests_pairwise
+
+        df = paired_tests_pairwise(self._image_df(), "macro_field_f1").set_index(["group_a", "group_b"])
+        row = df.loc[("strong", "weak")]
+        assert row["t_significant_at_0.05"] and row["wilcoxon_significant_at_0.05"]
+        assert row["mean_diff"] > 0
+
+    def test_identical_scores_are_not_significant(self):
+        from vifoodlabel.stats import paired_tests_pairwise
+
+        df = paired_tests_pairwise(self._image_df(), "macro_field_f1").set_index(["group_a", "group_b"])
+        assert not df.loc[("strong", "strong_twin"), "wilcoxon_significant_at_0.05"]
+
+
+class TestAggregationRobustness:
+    def test_ranks_under_each_aggregate(self):
+        from vifoodlabel.stats import aggregation_robustness
+
+        df = pd.DataFrame({
+            "model_key": ["a"] * 5 + ["b"] * 5,
+            # b has the higher median but an outlier-dragged lower mean
+            "macro_field_f1": [0.6, 0.6, 0.6, 0.6, 0.6, 0.7, 0.7, 0.7, 0.0, 0.0],
+        })
+        r = aggregation_robustness(df, "macro_field_f1").set_index("model_key")
+        assert r.loc["a", "rank_mean"] == 1
+        assert r.loc["b", "rank_median"] == 1
+
+
+class TestPairedBootstrapDiff:
+    def test_constant_shift(self):
+        from vifoodlabel.stats import paired_bootstrap_diff
+
+        d = paired_bootstrap_diff([0.5, 0.6, 0.7], [0.4, 0.5, 0.6])
+        assert d["mean_diff"] == pytest.approx(0.1)
+        assert d["diff_ci_low"] == pytest.approx(0.1)
+        assert d["diff_ci_high"] == pytest.approx(0.1)

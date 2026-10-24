@@ -307,3 +307,30 @@ def _record_and_return(response):
         return response
 
     return fake_create
+
+
+class TestTextOnlyCall:
+    """The OCR -> LLM baseline sends the transcript as text, no image."""
+
+    def test_messages_without_image(self):
+        client = VLMClient(base_url="http://example.invalid/v1", api_key="test")
+        content = client._messages_for("hello", None)[0]["content"]
+        assert content == [{"type": "text", "text": "hello"}]
+
+    def test_messages_with_image_unchanged(self):
+        client = VLMClient(base_url="http://example.invalid/v1", api_key="test")
+        content = client._messages_for("hello", "data:image/jpeg;base64,xx")[0]["content"]
+        assert [c["type"] for c in content] == ["text", "image_url"]
+
+    async def test_extract_with_no_image_path(self):
+        client = VLMClient(base_url="http://example.invalid/v1", api_key="test")
+        seen = {}
+
+        async def fake_create(model, instruction, image_data_url, extra_body):
+            seen["image_data_url"] = image_data_url
+            return _fake_outcome()
+
+        client._create = fake_create
+        r = await client.extract(_model(), None, "ocr text here")
+        assert r.ok
+        assert seen["image_data_url"] is None

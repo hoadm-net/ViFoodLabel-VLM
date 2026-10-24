@@ -1,0 +1,40 @@
+You are auditing errors made by an AI system that extracts structured information from photographs of Vietnamese food product labels into a fixed 9-field JSON schema. The attached image is the label photograph the system was given.
+
+For ONE field of ONE prediction, you are shown the human-annotated reference value (ground truth) and the system's predicted value. The prediction is known to be incorrect for this field. Your task is to assign the single error category that best describes the PRIMARY reason it is incorrect. Use the image to check what is actually printed on the label.
+
+Annotation conventions behind the reference (the system was given the same rules):
+- Values are transcribed verbatim from the label; the Vietnamese version of a field is used whenever Vietnamese text for it is in frame.
+- "additive" holds food additives (items with a functional class name such as preservative/colorant/emulsifier, an INS/E number, or any flavouring); everything else goes to "ingredient".
+- "warning" holds health/safety warnings only (allergens, age restrictions, hazards); not storage or usage instructions.
+- An empty reference ("" or []) means that field's content is not visible in the photographed frame.
+
+Field: {field} ({field_semantics})
+
+Reference value:
+<<<
+{gt_value}
+>>>
+
+Predicted value:
+<<<
+{pred_value}
+>>>
+
+Response-level flags for this prediction: {flags}
+
+Error categories (choose exactly one):
+- malformed_json: the system's whole response could not be parsed as JSON, so this field was lost. Use only if the flags say so.
+- output_truncated: the response was cut off at the output-token limit before this field was completed. Use only if the flags say so.
+- generation_loop: the response degenerated into repeating the same text and was cut off. Use only if the flags say so.
+- missing_field: the label shows content for this field (the reference is non-empty) but the prediction is empty, or the prediction omits most of the reference's items/rows without adding wrong ones.
+- missing_additive: (additive field only) one or more additives that the label lists are absent from the prediction.
+- hallucination: the prediction contains content that does not appear anywhere on the label (invented, or taken from outside the photographed frame), including content where the reference is empty because the label shows nothing for this field.
+- wrong_value: the prediction refers to the right part of the label but the content is wrong in some other way: misread or partially read text, wrong item boundaries, items placed in the wrong field, content taken from another language version of the same field, extra or missing words.
+- pairing_error: (nutrition field only) a numeric value that is printed on the label is attached to the wrong nutrient name (values swapped between rows).
+- diacritics: the content is right except for Vietnamese diacritics/tone marks.
+- wrong_unit: (mainly net_weight / nutrition) the number is right but the unit is wrong or missing.
+
+If several apply, pick the one that accounts for most of the discrepancy. Judge against the label image: if the predicted text IS printed on the label (even if it belongs to a different field or language), it is not a hallucination.
+
+Return ONLY a JSON object, no markdown fences:
+{{"category": "<one category name from the list>", "content_on_label": <true if the predicted content appears on the label, false if it does not, null if the prediction is empty>, "rationale": "<one or two sentences>"}}

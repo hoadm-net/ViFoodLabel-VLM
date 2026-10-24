@@ -83,7 +83,12 @@ def plot_fig1_heatmap(field_summary: pd.DataFrame, macro_f1: pd.Series):
     for i, val in enumerate(macro_vals):
         ax_macro.text(0, i, f"{val:.2f}", ha="center", va="center", color=_text_color(cmap(val)), fontsize=8)
 
-    fig.colorbar(im, ax=[ax_fields, ax_macro], label="F1", shrink=0.8)
+    for ax in (ax_fields, ax_macro):
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.grid(False)
+    cbar = fig.colorbar(im, ax=[ax_fields, ax_macro], label="F1", shrink=0.8)
+    cbar.outline.set_visible(False)
     return fig
 
 
@@ -100,19 +105,19 @@ def plot_fig2_nutrition(nutrition_df: pd.DataFrame):
 
     fig, (ax_a, ax_b, ax_c) = plt.subplots(1, 3, figsize=(WIDTH_DOUBLE, 2.4))
 
-    ax_a.bar(x, df["f1"].to_numpy(), color=colors, edgecolor="black", linewidth=0.5)
+    ax_a.bar(x, df["f1"].to_numpy(), color=colors, linewidth=0)
     ax_a.set_ylabel("Name F1")
     ax_a.set_ylim(0, 1)
     _panel_label(ax_a, "a")
 
     for i, m in enumerate(order):
         ax_b.plot(i, df.loc[m, "pairing_accuracy"], marker=MODEL_MARKER.get(m, "o"),
-                   color=MODEL_COLOR.get(m, "#333333"), markeredgecolor="black", markeredgewidth=0.4, markersize=5)
+                   color=MODEL_COLOR.get(m, "#333333"), markeredgewidth=0, markersize=5)
     ax_b.set_ylabel("Pairing accuracy")
     ax_b.set_ylim(0.95, 1.00)
     _panel_label(ax_b, "b")
 
-    ax_c.bar(x, df["value_accuracy"].to_numpy(), color=colors, edgecolor="black", linewidth=0.5)
+    ax_c.bar(x, df["value_accuracy"].to_numpy(), color=colors, linewidth=0)
     ax_c.set_ylabel("Value accuracy")
     ax_c.set_ylim(0, 1)
     _panel_label(ax_c, "c")
@@ -138,14 +143,14 @@ def plot_fig3_prompt_sensitivity(effects: pd.DataFrame):
 
     fig, (ax_a, ax_b) = plt.subplots(1, 2, figsize=(WIDTH_DOUBLE, 2.6), sharey=True)
 
-    ax_a.barh(y, df["shot_effect"].to_numpy(), color=colors, edgecolor="black", linewidth=0.5)
-    ax_a.axvline(0, color="black", linewidth=0.8)
+    ax_a.barh(y, df["shot_effect"].to_numpy(), color=colors, linewidth=0)
+    ax_a.axvline(0, color="#808080", linewidth=0.8)
     ax_a.set_xlabel("Δ macro field F1 (vi_one − vi_zero)")
     ax_a.set_xlim(*xlim)
     _panel_label(ax_a, "a")
 
-    ax_b.barh(y, df["language_effect"].to_numpy(), color=colors, edgecolor="black", linewidth=0.5)
-    ax_b.axvline(0, color="black", linewidth=0.8)
+    ax_b.barh(y, df["language_effect"].to_numpy(), color=colors, linewidth=0)
+    ax_b.axvline(0, color="#808080", linewidth=0.8)
     ax_b.set_xlabel("Δ macro field F1 (en_zero − vi_zero)")
     ax_b.set_xlim(*xlim)
     _panel_label(ax_b, "b")
@@ -212,7 +217,7 @@ def plot_fig5_error_taxonomy(shares: pd.DataFrame):
     for cat in categories:
         vals = df[cat].to_numpy()
         ax.bar(x, vals, bottom=bottom, color=CATEGORY_COLOR.get(cat, "#BFBFBF"),
-               edgecolor="black", linewidth=0.4, hatch=CATEGORY_HATCH[cat], label=cat)
+               edgecolor="white", linewidth=0.4, hatch=CATEGORY_HATCH[cat], label=cat)
         bottom += vals
     ax.set_xticks(x)
     ax.set_xticklabels(order, rotation=30, ha="right")
@@ -233,7 +238,7 @@ def plot_cost_effectiveness(cost_by_model: pd.Series, macro_f1: pd.Series):
         cost = float(cost_by_model.get(model_key, 0.0))
         f1 = float(macro_f1[model_key])
         ax.scatter(cost, f1, marker=MODEL_MARKER.get(model_key, "o"), color=model_color(model_key),
-                   s=60, edgecolor="black", linewidth=0.6, zorder=3)
+                   s=60, linewidth=0, zorder=3)
         ax.annotate(model_key, (cost, f1), textcoords="offset points", xytext=(5, 4), fontsize=8)
     ax.set_xlabel("Cumulative cost across all four tiers (USD)")
     ax.set_ylabel("Macro field-level F1 (Tier 1)")

@@ -69,3 +69,41 @@ class TestBuildInstruction:
         assert set(ALL_PROMPT_CONDITIONS) == {
             ("vi", "zero"), ("vi", "one"), ("en", "zero"),
         }
+
+
+class TestOcrInstruction:
+    def test_embeds_transcript_and_shared_rules(self):
+        from vifoodlabel.prompts import _load, build_ocr_instruction
+
+        text = build_ocr_instruction("Thành phần: Bột mì, Đường")
+        assert "Thành phần: Bột mì, Đường" in text
+        # Same field descriptions and classification rules as the image prompt.
+        assert _load("field_descriptions_vi.txt") in text
+        assert _load("classification_rules_vi.txt") in text
+        for placeholder in ("{fields}", "{classification_rules}", "{example}", "{ocr_text}"):
+            assert placeholder not in text
+
+    def test_transcript_with_braces_is_not_reformatted(self):
+        from vifoodlabel.prompts import build_ocr_instruction
+
+        assert "{weird} {{text}}" in build_ocr_instruction("{weird} {{text}}")
+
+    def test_only_vietnamese_supported(self):
+        import pytest
+
+        from vifoodlabel.prompts import build_ocr_instruction
+
+        with pytest.raises(ValueError):
+            build_ocr_instruction("x", language="en")
+
+
+class TestTaxonomyJudgeInstruction:
+    def test_fills_values_and_never_mentions_rule_output(self):
+        from vifoodlabel.prompts import build_taxonomy_judge_instruction
+
+        text = build_taxonomy_judge_instruction("origin", "Indonesia", "", "none")
+        assert "Field: origin" in text
+        assert "Indonesia" in text
+        assert "(empty)" in text  # empty prediction made explicit
+        assert "rule" not in text.lower().split("annotation conventions")[0]
+        assert '{"category"' in text  # literal JSON braces survived .format

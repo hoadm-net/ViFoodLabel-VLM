@@ -6,8 +6,10 @@
 #   open_general              - large open-weight general VLMs, via OpenRouter
 #   document_specialized_vi    - small Vietnamese-native document/OCR VLM, self-hosted
 #
-# Prices are USD per 1M tokens, as listed on OpenRouter at the time this file
-# was written (self-hosted models are free to run, hence 0/0).
+# Prices are USD per 1M tokens, as listed on OpenRouter (re-verified live
+# 2026-10-23 for the revision re-run; self-hosted models are free, hence 0/0).
+# `role` (default "evaluated") keeps support models -- the OCR-pipeline text
+# LLM and the taxonomy judge -- out of every subcommand's default selection.
 # `slug` is the exact model id passed to the chat-completions API.
 # `base_url` / `api_key_env` are omitted for OpenRouter models (they default
 # to OPENROUTER_BASE_URL / OPENROUTER_API_KEY, see src/vifoodlabel/client.py).
@@ -50,8 +52,8 @@ models:
     display_name: "Qwen3-VL-235B-A22B-Instruct"
     group: open_general
     open_weight: true
-    price_input_per_m: 0.20
-    price_output_per_m: 0.88
+    price_input_per_m: 0.21   # was 0.20/0.88 for the original submission run
+    price_output_per_m: 1.90
 
   - key: glm-4.6v
     slug: z-ai/glm-4.6v
@@ -66,8 +68,8 @@ models:
     display_name: "MiMo-V2.5"
     group: open_general
     open_weight: true
-    price_input_per_m: 0.105
-    price_output_per_m: 0.28
+    price_input_per_m: 0.119  # was 0.105/0.28 for the original submission run
+    price_output_per_m: 0.238
 
   # --- Vietnamese document-specialized (self-hosted via vLLM) ------------
   - key: vintern-3b
@@ -79,3 +81,62 @@ models:
     price_output_per_m: 0.0
     base_url: http://localhost:8000/v1
     api_key_env: VINTERN_API_KEY  # optional; defaults to vLLM's "EMPTY" placeholder if unset
+
+  # --- open general small VLMs (self-hosted via vLLM) ---------------------
+  # Added in revision (Reviewer 2.1): general-purpose VLMs at Vintern's
+  # scale, to separate Vietnamese specialization from scale directly.
+  # InternVL2.5-4B is the closest control there is: InternViT-300M +
+  # Qwen2.5-3B-Instruct, i.e. Vintern-3B-beta's own architecture family and
+  # LLM backbone without the Vietnamese fine-tuning (verified on the HF
+  # model cards, 2026-10-23). Qwen2.5-VL-3B-Instruct is a second, strong
+  # general VLM of the same size from a different family. Both get the same
+  # self-hosted call path as Vintern (repetition_penalty + loop cutoff, see
+  # client.py), so the three ~3B models share identical inference settings.
+  - key: internvl2.5-4b
+    slug: OpenGVLab/InternVL2_5-4B
+    display_name: "InternVL2.5-4B"
+    group: open_small
+    open_weight: true
+    price_input_per_m: 0.0
+    price_output_per_m: 0.0
+    base_url: http://localhost:8001/v1
+    api_key_env: VINTERN_API_KEY
+
+  - key: qwen2.5-vl-3b
+    slug: Qwen/Qwen2.5-VL-3B-Instruct
+    display_name: "Qwen2.5-VL-3B-Instruct"
+    group: open_small
+    open_weight: true
+    price_input_per_m: 0.0
+    price_output_per_m: 0.0
+    base_url: http://localhost:8002/v1
+    api_key_env: VINTERN_API_KEY
+
+  # --- support models (never in a default selection, see `role`) --------
+  # Text-only structuring LLM for the OCR -> LLM baseline (Reviewer 2.4):
+  # Vintern-3B-beta's own language backbone, so "OCR text -> this model"
+  # vs "image -> Vintern" isolates recognition from emission at 3B scale.
+  - key: qwen2.5-3b-text
+    slug: Qwen/Qwen2.5-3B-Instruct
+    display_name: "Qwen2.5-3B-Instruct (text)"
+    group: ocr_llm
+    open_weight: true
+    price_input_per_m: 0.0
+    price_output_per_m: 0.0
+    base_url: http://localhost:8003/v1
+    api_key_env: VINTERN_API_KEY
+    role: ocr_llm
+
+  # Taxonomy-validation labeller (Reviewer 2.2). Deliberately from a model
+  # family NOT in the evaluated roster, so the judge isn't grading its own
+  # family's errors. Reasoning stays on: this endpoint rejects
+  # reasoning={enabled: false} (see client.py's fallback), and for a judge
+  # that's desirable anyway.
+  - key: judge-gemini-3.1-pro
+    slug: google/gemini-3.1-pro-preview
+    display_name: "Gemini 3.1 Pro Preview (judge)"
+    group: judge
+    open_weight: false
+    price_input_per_m: 2.00
+    price_output_per_m: 12.00
+    role: judge

@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from vifoodlabel.metrics import ImageScore
 from vifoodlabel.normalize import extract_number_unit
-from vifoodlabel.schema import field_value_str
+from vifoodlabel.schema import LIST_FIELDS, NUTRITION_FIELD, SCALAR_FIELDS, field_value_str
 
 # Below this rapidfuzz token_sort_ratio, a predicted scalar value is treated
 # as unrelated to the ground truth rather than merely wrong -- chosen
@@ -34,6 +34,32 @@ from vifoodlabel.schema import field_value_str
 HALLUCINATION_SIMILARITY_THRESHOLD = 20.0
 
 LOW_CONFIDENCE_CATEGORIES = frozenset({"hallucination"})
+
+# The full vocabulary, in the order the paper lists it.
+ALL_CATEGORIES = [
+    "wrong_value", "hallucination", "missing_field", "missing_additive",
+    "generation_loop", "output_truncated", "pairing_error", "diacritics",
+    "wrong_unit", "malformed_json",
+]
+
+
+def iter_incorrect_fields(scores: list[ImageScore]):
+    """Every incorrect (image, model, field) instance, as (score, field,
+    field_type, field_score) -- the population Tier 4 classifies. A field is
+    incorrect when it isn't a lenient match (scalars), F1 < 1 (lists), or
+    anything about the nutrition table is imperfect (names, pairing, values)."""
+    for s in scores:
+        for f in SCALAR_FIELDS:
+            r = s.scalar_results[f]
+            if not r.lenient_match:
+                yield s, f, "scalar", r.similarity / 100.0
+        for f in LIST_FIELDS:
+            r = s.list_results[f]
+            if r.f1 < 1.0:
+                yield s, f, "list", r.f1
+        n = s.nutrition_result
+        if n is not None and (n.name_f1 < 1.0 or n.pairing_accuracy < 1.0 or n.value_accuracy < 1.0):
+            yield s, NUTRITION_FIELD, "nutrition", n.name_f1
 
 
 def classify_error(score: ImageScore, field: str, field_type: str) -> str:

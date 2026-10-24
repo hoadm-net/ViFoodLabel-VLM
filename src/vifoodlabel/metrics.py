@@ -101,6 +101,8 @@ def scores_to_dataframe(scores: list[ImageScore]) -> pd.DataFrame:
                 "strict_f1": float(r.strict_match), "similarity": r.similarity,
                 "diacritic_only_mismatch": r.diacritic_only_mismatch,
                 "pairing_accuracy": None, "value_accuracy": None,
+                "n_pred": int(bool(s.pred and str(getattr(s.pred, f)).strip())),
+                "n_gt": int(bool(s.gt and str(getattr(s.gt, f)).strip())),
                 "json_valid": s.json_valid, "api_error": s.api_error,
             })
         for f, r in s.list_results.items():
@@ -110,6 +112,7 @@ def scores_to_dataframe(scores: list[ImageScore]) -> pd.DataFrame:
                 "precision": r.precision, "recall": r.recall, "f1": r.f1,
                 "strict_f1": None, "similarity": None, "diacritic_only_mismatch": None,
                 "pairing_accuracy": None, "value_accuracy": None,
+                "n_pred": r.n_pred, "n_gt": r.n_gt,
                 "json_valid": s.json_valid, "api_error": s.api_error,
             })
         if s.nutrition_result is not None:
@@ -120,6 +123,7 @@ def scores_to_dataframe(scores: list[ImageScore]) -> pd.DataFrame:
                 "precision": n.name_precision, "recall": n.name_recall, "f1": n.name_f1,
                 "strict_f1": None, "similarity": None, "diacritic_only_mismatch": None,
                 "pairing_accuracy": n.pairing_accuracy, "value_accuracy": n.value_accuracy,
+                "n_pred": n.n_pred, "n_gt": n.n_gt,
                 "json_valid": s.json_valid, "api_error": s.api_error,
             })
     return pd.DataFrame(rows)

@@ -146,3 +146,14 @@ class TestModelSummary:
         assert len(summary) == 1
         assert summary.iloc[0]["n_images"] == 2
         assert 0.0 < summary.iloc[0]["mean_macro_field_f1"] < 1.0
+
+
+class TestEmissionCounts:
+    def test_item_counts_recorded_per_field(self):
+        gt = _label()
+        pred = _label(ingredient=["Bột mì"], product_name="")
+        df = scores_to_dataframe([score_prediction("0001", "m", "vi_zero", gt, pred, json_valid=True)]).set_index("field")
+        assert (df.loc["ingredient", "n_pred"], df.loc["ingredient", "n_gt"]) == (1, 2)
+        assert (df.loc["nutrition", "n_pred"], df.loc["nutrition", "n_gt"]) == (1, 1)
+        # Scalars: 1 if non-empty, so empty-vs-present is countable too.
+        assert (df.loc["product_name", "n_pred"], df.loc["product_name", "n_gt"]) == (0, 1)

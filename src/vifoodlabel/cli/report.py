@@ -16,8 +16,9 @@ import argparse
 
 import pandas as pd
 
-from vifoodlabel.config import FIGURES_DIR, SCORED_RESULTS_DIR
+from vifoodlabel.config import FIGURES_DIR, RAW_RESULTS_DIR, SCORED_RESULTS_DIR
 from vifoodlabel.cost import LEDGER_PATH
+from vifoodlabel.io_utils import load_json
 from vifoodlabel.figstyle import apply_style, save_figure, save_online_resource
 from vifoodlabel.metrics import model_field_summary, model_summary
 from vifoodlabel.plotting import (
@@ -29,7 +30,14 @@ from vifoodlabel.plotting import (
     plot_fig5_error_taxonomy,
 )
 from vifoodlabel.prompts import CANONICAL_CONDITION
-from vifoodlabel.stats import bootstrap_ci_table, mcnemar_pairwise
+from vifoodlabel.stats import (
+    aggregation_robustness,
+    bootstrap_ci,
+    bootstrap_ci_table,
+    mcnemar_pairwise,
+    paired_bootstrap_diff,
+    paired_tests_pairwise,
+)
 
 # Categories under 1% of every model's errors are pooled into "other" for
 # Fig 5 -- kept separate they'd each be a legend entry pointing at an
@@ -156,8 +164,12 @@ def report_tier1() -> pd.DataFrame | None:
         mcnemar_df = pd.concat(mcnemar_rows, ignore_index=True)
         print(mcnemar_df.to_string(index=False))
         mcnemar_df.to_csv(SCORED_RESULTS_DIR / "tier1_mcnemar.csv", index=False)
+        _mcnemar_counts(mcnemar_df)
     else:
         print("  (not enough models/images yet for a pairwise comparison)")
+
+    _tier1_statistics_robustness(image_df)
+    _tier1_emission(field_df)
 
     # vector_dpi=150: the heatmap's imshow cells are a tiny array (7x9);
     # left at the default 600dpi, the embedded raster balloons the PDF/EPS
@@ -172,9 +184,106 @@ def report_tier1() -> pd.DataFrame | None:
         nutrition_summary = nutrition_rows.groupby("model_key").agg(
             f1=("f1", "mean"), pairing_accuracy=("pairing_accuracy", "mean"), value_accuracy=("value_accuracy", "mean"),
         ).reset_index()
+        # Name precision/recall alongside -- pairing/value accuracy are
+        # conditional on name matching, so they can't be read without them.
+        nutrition_detail = nutrition_rows.groupby("model_key").agg(
+            name_precision=("precision", "mean"), name_recall=("recall", "mean"), name_f1=("f1", "mean"),
+            pairing_accuracy=("pairing_accuracy", "mean"), value_accuracy=("value_accuracy", "mean"),
+            n_images=("image_id", "nunique"),
+        ).reset_index()
+        nutrition_detail["recall_minus_precision"] = nutrition_detail["name_recall"] - nutrition_detail["name_precision"]
+        print("\nNutrition decomposition:")
+        print(nutrition_detail.round(4).to_string(index=False))
+        nutrition_detail.to_csv(SCORED_RESULTS_DIR / "tier1_nutrition_summary.csv", index=False)
         _save(plot_fig2_nutrition(nutrition_summary), 2)
 
     return image_df
+
+
+def _mcnemar_counts(mcnemar_df: pd.DataFrame) -> None:
+    """Appendix Table 5 equivalent: per model pair, how many of the nine
+    fields separate at alpha=0.05 -- under Holm (as reported) and under
+    plain Bonferroni (for the Holm-vs-Bonferroni question). Plus per field:
+    how many pairs separate, and the smallest discordant count behind any test."""
+    sig_holm = [c for c in mcnemar_df.columns if c.startswith("significant_at_")][0]
+    sig_bonf = [c for c in mcnemar_df.columns if c.startswith("significant_bonferroni_at_")][0]
+    df = mcnemar_df.copy()
+    df["n_discordant"] = df["a_only_correct"] + df["b_only_correct"]
+    pairs = df.groupby(["group_a", "group_b"]).agg(
+        fields_sig_holm=(sig_holm, "sum"), fields_sig_bonferroni=(sig_bonf, "sum"),
+        min_discordant=("n_discordant", "min"),
+    ).reset_index()
+    by_field = df.groupby("field").agg(
+        pairs_sig_holm=(sig_holm, "sum"), pairs_sig_bonferroni=(sig_bonf, "sum"),
+        n_pairs=("group_a", "size"), min_discordant=("n_discordant", "min"),
+    ).reset_index()
+    print("\nMcNemar: fields separated per model pair (Holm vs Bonferroni):")
+    print(pairs.to_string(index=False))
+    print("\nMcNemar: pairs separated per field:")
+    print(by_field.to_string(index=False))
+    print(f"  total significant tests: Holm {int(df[sig_holm].sum())}, Bonferroni {int(df[sig_bonf].sum())} of {len(df)}")
+    pairs.to_csv(SCORED_RESULTS_DIR / "tier1_mcnemar_pair_counts.csv", index=False)
+    by_field.to_csv(SCORED_RESULTS_DIR / "tier1_mcnemar_field_counts.csv", index=False)
+
+
+def _tier1_statistics_robustness(image_df: pd.DataFrame) -> None:
+    """Answers to the statistics questions in review: does the ranking
+    depend on the arithmetic mean (vs median / trimmed mean), and do
+    parametric (paired t) and non-parametric (Wilcoxon) paired tests on the
+    per-image macro F1 agree?"""
+    tier1 = image_df[image_df["condition"] == CANONICAL_CONDITION]
+    robust = aggregation_robustness(tier1, "macro_field_f1")
+    print("\nAggregation robustness (macro field F1):")
+    print(robust.round(4).to_string(index=False))
+    robust.to_csv(SCORED_RESULTS_DIR / "tier1_aggregation_robustness.csv", index=False)
+
+    paired = paired_tests_pairwise(tier1, "macro_field_f1")
+    if not paired.empty:
+        print("\nPaired tests on per-image macro field F1 (Holm within each test):")
+        print(paired.round(5).to_string(index=False))
+        paired.to_csv(SCORED_RESULTS_DIR / "tier1_paired_tests_macro_f1.csv", index=False)
+
+
+def _tier1_emission(field_df: pd.DataFrame) -> None:
+    """How much each model *emits* relative to the reference: per list/table
+    field, predicted vs reference item counts (on images where the
+    reference is non-empty), share of such images left empty, and per-model
+    output length / stop reasons from the raw response cache. This is the
+    direct evidence for the "emission vs recognition" reading of Vintern."""
+    if "n_pred" not in field_df.columns or field_df["n_pred"].isna().any():
+        print("  (skipping emission analysis: scored CSV predates n_pred/n_gt -- re-run 'benchmark' to re-score from cache)")
+        return
+    df = field_df[(field_df["condition"] == CANONICAL_CONDITION) & (field_df["n_gt"] > 0)]
+    emission = df.groupby(["model_key", "field"]).agg(
+        n_images=("image_id", "nunique"),
+        mean_n_gt=("n_gt", "mean"), mean_n_pred=("n_pred", "mean"),
+        sum_n_gt=("n_gt", "sum"), sum_n_pred=("n_pred", "sum"),
+        empty_rate=("n_pred", lambda v: float((v == 0).mean())),
+        mean_recall=("recall", "mean"), mean_precision=("precision", "mean"),
+    ).reset_index()
+    emission["emitted_ratio"] = emission["sum_n_pred"] / emission["sum_n_gt"]
+    print("\nEmission: predicted vs reference item counts (images with non-empty reference):")
+    print(emission.round(3).to_string(index=False))
+    emission.to_csv(SCORED_RESULTS_DIR / "tier1_emission_by_field.csv", index=False)
+
+    rows = []
+    tier_dir = RAW_RESULTS_DIR / "benchmark"
+    for model_dir in sorted(tier_dir.glob("*")) if tier_dir.exists() else []:
+        recs = [load_json(p) for p in model_dir.glob(f"*__{CANONICAL_CONDITION}.json")]
+        if not recs:
+            continue
+        out = pd.Series([r.get("output_tokens") or 0 for r in recs], dtype=float)
+        fr = pd.Series([r.get("finish_reason") for r in recs])
+        rows.append({
+            "model_key": recs[0].get("model_key"), "n": len(recs),
+            "mean_output_tokens": out.mean(), "median_output_tokens": out.median(),
+            "share_truncated": float((fr == "length").mean()), "share_loop_cutoff": float((fr == "loop_cutoff").mean()),
+        })
+    if rows:
+        tokens = pd.DataFrame(rows)
+        print("\nOutput length and stop reasons (Tier 1 raw responses):")
+        print(tokens.round(3).to_string(index=False))
+        tokens.to_csv(SCORED_RESULTS_DIR / "tier1_output_length.csv", index=False)
 
 
 def report_tier2() -> None:
@@ -233,8 +342,106 @@ def report_tier3(tier1_image_df: pd.DataFrame | None) -> None:
     )
     print(curve.to_string(index=False))
     curve.to_csv(SCORED_RESULTS_DIR / "tier3_degradation_curve.csv", index=False)
+    _tier3_detail(image_df)
 
     _save(plot_fig4_degradation(curve), 4)
+
+
+def _tier3_detail(image_df: pd.DataFrame) -> None:
+    """Per model x corruption x severity: mean with bootstrap CI, and the
+    paired change vs. the clean (severity 0) score on the same images with
+    its own bootstrap CI and relative change -- the measurement detail
+    behind the degradation curves (e.g. rotation's gradual decline). Plus
+    the per-field breakdown of each corruption at each severity."""
+    if 0 not in set(image_df["severity"]):
+        print("  (skipping Tier 3 detail: no clean severity-0 baseline available)")
+        return
+    rows = []
+    for (model_key, kind), g in image_df.groupby(["model_key", "kind"]):
+        clean = g[g["severity"] == 0].set_index("image_id")["macro_field_f1"]
+        for severity, gs in g.groupby("severity"):
+            vals = gs.set_index("image_id")["macro_field_f1"]
+            ci = bootstrap_ci(vals.to_numpy())
+            common = vals.index.intersection(clean.index)
+            diff = paired_bootstrap_diff(vals.loc[common].to_numpy(), clean.loc[common].to_numpy())
+            rows.append({
+                "model_key": model_key, "kind": kind, "severity": int(severity),
+                "mean": ci["mean"], "ci_low": ci["ci_low"], "ci_high": ci["ci_high"],
+                "delta_vs_clean": diff["mean_diff"], "delta_ci_low": diff["diff_ci_low"], "delta_ci_high": diff["diff_ci_high"],
+                "relative_change": diff["mean_diff"] / clean.loc[common].mean() if len(common) else float("nan"),
+                "json_valid_rate": float(gs["json_valid"].mean()), "n_images": len(vals),
+            })
+    detail = pd.DataFrame(rows).sort_values(["kind", "model_key", "severity"])
+    print("\nTier 3 detail (paired change vs clean, bootstrap 95% CI):")
+    print(detail.round(4).to_string(index=False))
+    detail.to_csv(SCORED_RESULTS_DIR / "tier3_detail.csv", index=False)
+
+    field_df = _load("tier3_field_scores.csv")
+    tier1_field = _load("tier1_field_scores.csv")
+    if field_df is None or tier1_field is None:
+        return
+    field_df = field_df.copy()
+    field_df[["kind", "severity"]] = field_df["condition"].str.extract(r"(\w+)_s(\d)")
+    field_df["severity"] = field_df["severity"].astype(int)
+    clean = tier1_field[(tier1_field["condition"] == CANONICAL_CONDITION) & tier1_field["image_id"].isin(set(field_df["image_id"]))]
+    parts = [field_df]
+    for kind in field_df["kind"].unique():
+        parts.append(clean.assign(kind=kind, severity=0))
+    by_field = (
+        pd.concat(parts, ignore_index=True)
+        .groupby(["kind", "model_key", "field", "severity"])["f1"].mean()
+        .unstack("severity").reset_index()
+    )
+    by_field.columns = [f"s{c}" if isinstance(c, (int, float)) else c for c in by_field.columns]
+    print("\nTier 3 per-field F1 by severity (s0 = clean):")
+    print(by_field.round(3).to_string(index=False))
+    by_field.to_csv(SCORED_RESULTS_DIR / "tier3_by_field.csv", index=False)
+
+
+def report_ocr_pipeline(tier1_image_df: pd.DataFrame | None) -> None:
+    """OCR -> LLM baseline vs. image input. Two comparisons, each on the
+    images both arms scored: the same model fed OCR text instead of the
+    image (e.g. MiMo-V2.5), and Vintern's language backbone fed OCR text
+    vs. the ~3B VLMs fed the image."""
+    print("\n=== OCR -> LLM baseline ===")
+    image_df = _load("ocr_pipeline_image_scores.csv")
+    field_df = _load("ocr_pipeline_field_scores.csv")
+    if image_df is None or field_df is None:
+        print("Run scripts/run_ocr.py, then 'main.py ocr-pipeline' first.")
+        return
+    summary = model_summary(image_df)
+    ci = bootstrap_ci_table(image_df, value_col="macro_field_f1")
+    summary = summary.merge(ci[["model_key", "condition", "ci_low", "ci_high"]], on=["model_key", "condition"])
+    print(summary.round(4).to_string(index=False))
+    summary.to_csv(SCORED_RESULTS_DIR / "ocr_pipeline_summary.csv", index=False)
+
+    fields = model_field_summary(field_df)
+    print(fields.round(3).to_string(index=False))
+    fields.to_csv(SCORED_RESULTS_DIR / "ocr_pipeline_field_summary.csv", index=False)
+
+    if tier1_image_df is None:
+        return
+    tier1 = tier1_image_df[tier1_image_df["condition"] == CANONICAL_CONDITION]
+    rows = []
+    for (ocr_model, condition), g in image_df.groupby(["model_key", "condition"]):
+        ocr = g.set_index("image_id")["macro_field_f1"]
+        for vlm, gv in tier1.groupby("model_key"):
+            img = gv.set_index("image_id")["macro_field_f1"]
+            common = ocr.index.intersection(img.index)
+            if not len(common):
+                continue
+            d = paired_bootstrap_diff(ocr.loc[common].to_numpy(), img.loc[common].to_numpy())
+            rows.append({
+                "ocr_model": ocr_model, "ocr_condition": condition, "image_model": vlm,
+                "same_model": ocr_model == vlm, "n_images": len(common),
+                "ocr_macro_f1": ocr.loc[common].mean(), "image_macro_f1": img.loc[common].mean(),
+                "delta_ocr_minus_image": d["mean_diff"], "delta_ci_low": d["diff_ci_low"], "delta_ci_high": d["diff_ci_high"],
+            })
+    if rows:
+        comp = pd.DataFrame(rows).sort_values(["ocr_model", "image_macro_f1"], ascending=[True, False])
+        print("\nOCR text vs image input (paired on common images):")
+        print(comp.round(4).to_string(index=False))
+        comp.to_csv(SCORED_RESULTS_DIR / "ocr_pipeline_vs_image.csv", index=False)
 
 
 def report_tier4() -> None:
@@ -267,5 +474,6 @@ def run(args: argparse.Namespace) -> None:
     report_tier2()
     report_tier3(tier1_image_df)
     report_tier4()
+    report_ocr_pipeline(tier1_image_df)
     report_cost(tier1_image_df)
     _write_captions()

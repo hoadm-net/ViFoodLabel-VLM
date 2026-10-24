@@ -20,6 +20,8 @@ Usage:
     uv run main.py perturbation --start-id 1 --end-id 3 --resume
     uv run main.py error-sample --sample-size 300
     uv run main.py label-agreement
+    uv run main.py ocr-pipeline --dry-run          # after scripts/run_ocr.py
+    uv run main.py taxonomy-validation --dry-run   # after benchmark
     uv run main.py report
 """
 
@@ -27,7 +29,16 @@ from __future__ import annotations
 
 import argparse
 
-from vifoodlabel.cli import benchmark, error_sample, label_agreement, perturbation, prompt_sensitivity, report
+from vifoodlabel.cli import (
+    benchmark,
+    error_sample,
+    label_agreement,
+    ocr_pipeline,
+    perturbation,
+    prompt_sensitivity,
+    report,
+    taxonomy_validation,
+)
 
 SUBCOMMANDS = {
     "benchmark": benchmark,
@@ -35,6 +46,8 @@ SUBCOMMANDS = {
     "perturbation": perturbation,
     "error-sample": error_sample,
     "label-agreement": label_agreement,
+    "ocr-pipeline": ocr_pipeline,
+    "taxonomy-validation": taxonomy_validation,
     "report": report,
 }
 

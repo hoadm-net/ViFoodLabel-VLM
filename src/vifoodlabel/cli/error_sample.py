@@ -36,26 +36,11 @@ import random
 
 from vifoodlabel.cli.common import add_dataset_args, resolve_dataset, resolve_selected_models
 from vifoodlabel.config import SCORED_RESULTS_DIR
-from vifoodlabel.error_taxonomy import LOW_CONFIDENCE_CATEGORIES, classify_error
+from vifoodlabel.error_taxonomy import LOW_CONFIDENCE_CATEGORIES, classify_error, iter_incorrect_fields
 from vifoodlabel.io_utils import labeled_only
 from vifoodlabel.prompts import CANONICAL_CONDITION
 from vifoodlabel.runner import load_cached_records, score_records
-from vifoodlabel.schema import LIST_FIELDS, NUTRITION_FIELD, SCALAR_FIELDS, field_value_str
-
-
-def _iter_incorrect_fields(scores):
-    for s in scores:
-        for f in SCALAR_FIELDS:
-            r = s.scalar_results[f]
-            if not r.lenient_match:
-                yield s, f, "scalar", r.similarity / 100.0
-        for f in LIST_FIELDS:
-            r = s.list_results[f]
-            if r.f1 < 1.0:
-                yield s, f, "list", r.f1
-        n = s.nutrition_result
-        if n is not None and (n.name_f1 < 1.0 or n.pairing_accuracy < 1.0 or n.value_accuracy < 1.0):
-            yield s, NUTRITION_FIELD, "nutrition", n.name_f1
+from vifoodlabel.schema import field_value_str
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:
@@ -80,7 +65,7 @@ def run(args: argparse.Namespace) -> None:
 
     scores = score_records(records)
     rows = []
-    for s, field, field_type, score in _iter_incorrect_fields(scores):
+    for s, field, field_type, score in iter_incorrect_fields(scores):
         category = classify_error(s, field, field_type)
         rows.append({
             "image_id": s.image_id,

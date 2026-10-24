@@ -32,7 +32,7 @@ class RunItem:
     model: ModelSpec
     condition: str
     instruction: str
-    image_path: Path  # overridable, e.g. a perturbed image for Tier 3
+    image_path: Path | None  # overridable, e.g. a perturbed image for Tier 3; None = text-only call (OCR -> LLM)
 
 
 async def _run_one(client: VLMClient, tier: str, semaphore: asyncio.Semaphore, run_item: RunItem, force: bool) -> dict:

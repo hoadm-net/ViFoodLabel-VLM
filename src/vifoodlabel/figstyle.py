@@ -23,7 +23,7 @@ WIDTH_DOUBLE = 174 * MM  # multi-panel figures
 # figure regardless of that figure's own model ordering.
 MODEL_ORDER = [
     "claude-sonnet-5", "gpt-5.4", "mimo-v2.5", "qwen3-vl-235b",
-    "grok-4.20", "glm-4.6v", "vintern-3b",
+    "grok-4.20", "glm-4.6v", "qwen2.5-vl-3b", "internvl2.5-4b", "vintern-3b",
 ]
 
 # Okabe-Ito palette (colorblind-safe).
@@ -35,6 +35,10 @@ MODEL_COLOR: dict[str, str] = {
     "grok-4.20": "#009E73",
     "glm-4.6v": "#0072B2",
     "vintern-3b": "#CC79A7",
+    # The two ~3B general controls added in revision: Okabe-Ito has no
+    # ninth hue, so neutral greys -- marker/linestyle carry identity.
+    "qwen2.5-vl-3b": "#7F7F7F",
+    "internvl2.5-4b": "#3F3F3F",
 }
 
 # Second information channel, independent of color -- distinguishes all 7
@@ -42,12 +46,13 @@ MODEL_COLOR: dict[str, str] = {
 MODEL_MARKER: dict[str, str] = {
     "claude-sonnet-5": "o", "gpt-5.4": "s", "mimo-v2.5": "^",
     "qwen3-vl-235b": "D", "grok-4.20": "v", "glm-4.6v": "P",
-    "vintern-3b": "X",
+    "vintern-3b": "X", "qwen2.5-vl-3b": "h", "internvl2.5-4b": "*",
 }
 MODEL_LINESTYLE: dict[str, object] = {
     "claude-sonnet-5": "-", "gpt-5.4": "--", "mimo-v2.5": "-.",
     "qwen3-vl-235b": ":", "grok-4.20": (0, (3, 1, 1, 1)),
     "glm-4.6v": (0, (5, 2)), "vintern-3b": (0, (1, 1)),
+    "qwen2.5-vl-3b": (0, (6, 1, 1, 1, 1, 1)), "internvl2.5-4b": (0, (2, 2)),
 }
 
 # Error-taxonomy categories: hatch is the color-independent channel for the
@@ -101,6 +106,15 @@ def apply_style() -> None:
         "pdf.fonttype": 42,
         "ps.fonttype": 42,
 
+        # No black borders anywhere (reviewer request): axis lines in a
+        # mid grey, no legend frame; bar/marker outlines are dropped in
+        # plotting.py and the heatmap's frame is removed there too.
+        "axes.edgecolor": "#808080",
+        "xtick.color": "#808080",
+        "ytick.color": "#808080",
+        "xtick.labelcolor": "black",
+        "ytick.labelcolor": "black",
+        "legend.frameon": False,
         "axes.linewidth": 0.6,
         "grid.linewidth": 0.4,
         "lines.linewidth": 1.2,

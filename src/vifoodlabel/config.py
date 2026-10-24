@@ -19,6 +19,7 @@ RAW_RESULTS_DIR = RESULTS_DIR / "raw"
 SCORED_RESULTS_DIR = RESULTS_DIR / "scored"
 FIGURES_DIR = RESULTS_DIR / "figures"
 PERTURBED_IMAGES_DIR = RESULTS_DIR / "perturbed_images"
+OCR_RESULTS_DIR = RESULTS_DIR / "ocr"  # written by scripts/run_ocr.py (separate env)
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
 
@@ -34,6 +35,11 @@ class ModelSpec:
     price_output_per_m: float
     base_url: str | None = None  # None => OPENROUTER_BASE_URL
     api_key_env: str | None = None  # None => OPENROUTER_API_KEY
+    # "evaluated" = a benchmarked VLM (the default selection for every
+    # subcommand). Anything else is a support model that's only ever
+    # selected explicitly: "ocr_llm" (text-only structuring LLM for the
+    # OCR -> LLM baseline) or "judge" (taxonomy-validation labeller).
+    role: str = "evaluated"
 
     @property
     def slug_sanitized(self) -> str:
@@ -72,21 +78,25 @@ def load_model_registry(path: Path | None = None) -> dict[str, ModelSpec]:
             price_output_per_m=float(entry["price_output_per_m"]),
             base_url=entry.get("base_url"),
             api_key_env=entry.get("api_key_env"),
+            role=entry.get("role", "evaluated"),
         )
         specs[spec.key] = spec
     return specs
 
 
-def resolve_models(selectors: list[str] | None) -> list[ModelSpec]:
+def resolve_models(selectors: list[str] | None, default_role: str = "evaluated") -> list[ModelSpec]:
     """Resolve a list of CLI-provided model keys or slugs to ModelSpec objects.
 
-    If `selectors` is None or empty, returns all registered models.
+    If `selectors` is None or empty, returns every model whose role is
+    `default_role` (the benchmarked VLMs, unless asked otherwise) -- support
+    models (OCR-pipeline LLMs, the taxonomy judge) never leak into a default
+    run. Explicit selectors may name a model of any role.
     Accepts either the short `key` (e.g. "gpt-5.4") or the full OpenRouter
     `slug` (e.g. "openai/gpt-5.4").
     """
     registry = load_model_registry()
     if not selectors:
-        return list(registry.values())
+        return [spec for spec in registry.values() if spec.role == default_role]
 
     by_slug = {spec.slug: spec for spec in registry.values()}
     resolved = []

@@ -179,18 +179,15 @@ class VLMClient:
             return dict(LOCAL_EXTRA_BODY) if model.is_local else {}
         return {"reasoning": {"enabled": False}}
 
-    def _messages_for(self, instruction: str, image_data_url: str) -> list[dict]:
-        return [
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": instruction},
-                    {"type": "image_url", "image_url": {"url": image_data_url}},
-                ],
-            }
-        ]
+    def _messages_for(self, instruction: str, image_data_url: str | None) -> list[dict]:
+        # image_data_url=None is a text-only call -- the OCR -> LLM baseline,
+        # where the OCR transcript is already embedded in `instruction`.
+        content: list[dict] = [{"type": "text", "text": instruction}]
+        if image_data_url is not None:
+            content.append({"type": "image_url", "image_url": {"url": image_data_url}})
+        return [{"role": "user", "content": content}]
 
-    async def _create(self, model: ModelSpec, instruction: str, image_data_url: str, extra_body: dict) -> _CallOutcome:
+    async def _create(self, model: ModelSpec, instruction: str, image_data_url: str | None, extra_body: dict) -> _CallOutcome:
         response = await self._client.chat.completions.create(
             model=model.slug,
             temperature=DEFAULT_TEMPERATURE,
@@ -249,7 +246,7 @@ class VLMClient:
             output_tokens=output_tokens or len(parts),
         )
 
-    async def _create_streaming(self, model: ModelSpec, instruction: str, image_data_url: str, extra_body: dict) -> _CallOutcome:
+    async def _create_streaming(self, model: ModelSpec, instruction: str, image_data_url: str | None, extra_body: dict) -> _CallOutcome:
         stream = await self._client.chat.completions.create(
             model=model.slug,
             temperature=DEFAULT_TEMPERATURE,
@@ -267,7 +264,7 @@ class VLMClient:
         wait=wait_random_exponential(multiplier=1, max=60),
         reraise=True,
     )
-    async def _call(self, model: ModelSpec, instruction: str, image_data_url: str) -> _CallOutcome:
+    async def _call(self, model: ModelSpec, instruction: str, image_data_url: str | None) -> _CallOutcome:
         extra_body = self._extra_body_for(model)
         creator = self._create_streaming if model.is_local else self._create
         try:
@@ -278,8 +275,8 @@ class VLMClient:
                 return await creator(model, instruction, image_data_url, {})
             raise
 
-    async def extract(self, model: ModelSpec, image_path: Path, instruction: str) -> RawResponse:
-        image_data_url = image_to_data_url(image_path)
+    async def extract(self, model: ModelSpec, image_path: Path | None, instruction: str) -> RawResponse:
+        image_data_url = image_to_data_url(image_path) if image_path is not None else None
         start = time.monotonic()
         try:
             outcome = await self._call(model, instruction, image_data_url)
