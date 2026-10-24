@@ -128,3 +128,12 @@ class TestNormalizeDate:
 
     def test_relative_date_text_preserved(self):
         assert normalize_date("06 tháng trước HSD") == normalize_text("06 tháng trước HSD")
+
+
+class TestUnitStopsAtSlash:
+    """Regression (see test_matching.TestNetWeightPerPackageRegression)."""
+
+    def test_unit_stops_at_slash(self):
+        assert extract_number_unit("115 g/hộp") == (115.0, "g")
+        assert extract_number_unit("72 g/ Hộp") == (72.0, "g")
+        assert extract_number_unit("420 ml / chai") == (420.0, "ml")

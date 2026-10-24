@@ -92,6 +92,9 @@ def extract_number_unit(raw: str) -> tuple[float | None, str | None]:
     whitespace/punctuation, not just the next digit. Without this, a value
     like '140 g (14 g x 10 cây).' (real net_weight ground truth) grabbed
     "g (14 g x 10 cây" as the "unit", which never matches a plain "g".
+    It also stops at "/": a per-package suffix written without a space
+    ('115 g/hộp') used to become the unit "g/hộp" and so never matched
+    '115 g / hộp' (see tests/test_matching.py).
     """
     text = raw or ""
     num_match = _NUMBER_RE.search(text)
@@ -99,7 +102,7 @@ def extract_number_unit(raw: str) -> tuple[float | None, str | None]:
         return None, None
     number = normalize_number(num_match.group(0))
     remainder = text[num_match.end():].strip()
-    unit_match = re.match(r"[^\d\s(),;]*", remainder)
+    unit_match = re.match(r"[^\d\s(),;/]*", remainder)
     unit_raw = unit_match.group(0).strip() if unit_match else ""
     unit = normalize_unit(unit_raw) if unit_raw else None
     return number, unit

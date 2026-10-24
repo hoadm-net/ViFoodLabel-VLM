@@ -181,3 +181,18 @@ class TestMatchNutrition:
         r = match_nutrition([], [])
         assert r.name_f1 == 1.0
         assert r.pairing_accuracy == 1.0
+
+
+class TestNetWeightPerPackageRegression:
+    """Regression: a per-package suffix written without a space ("g/hộp")
+    was read as the unit "g/hộp", so it never matched "g / hộp" -- found by
+    the human review of the taxonomy-validation sample (images 0202, 0347,
+    0358), all scored wrong for spacing alone."""
+
+    def test_slash_suffix_with_and_without_spaces(self):
+        assert match_scalar("net_weight", "115 g/hộp", "115 g / hộp").lenient_match
+        assert match_scalar("net_weight", "420 ml/chai", "420 ml / chai").lenient_match
+        assert match_scalar("net_weight", "72g/Hộp (90 viên x 800 mg).", "72 g/ Hộp (90 viên x 800 mg)").lenient_match
+
+    def test_different_unit_before_slash_still_mismatches(self):
+        assert not match_scalar("net_weight", "115 mg/hộp", "115 g / hộp").strict_match

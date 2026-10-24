@@ -97,9 +97,9 @@ def _population(args: argparse.Namespace) -> list[dict]:
     return rows
 
 
-def _print_agreement(label: str, rule: list[str], reference: list[str], out_stem: str) -> None:
+def _print_agreement(label: str, rule: list[str], reference: list[str], out_stem: str, labeller: str = "Rule") -> None:
     overall, per_category, confusion = category_agreement(rule, reference)
-    print(f"\nRule vs {label}: n={overall['n']}, accuracy={overall['accuracy']:.3f}, Cohen's kappa={overall['cohen_kappa']:.3f}")
+    print(f"\n{labeller} vs {label}: n={overall['n']}, accuracy={overall['accuracy']:.3f}, Cohen's kappa={overall['cohen_kappa']:.3f}")
     if per_category.empty:
         return
     print(per_category.round(3).to_string(index=False))
@@ -124,7 +124,8 @@ def _score_human() -> None:
         print(f"  note: {len(unknown)} confirmed rows use a category name not seen elsewhere in the sheet -- check for typos")
     _print_agreement("human", confirmed["rule_category"].tolist(), confirmed["human_category"].tolist(), "taxonomy_validation_human")
     judged = confirmed.dropna(subset=["judge_category"])
-    _print_agreement("judge (on the confirmed rows)", judged["judge_category"].tolist(), judged["human_category"].tolist(), "taxonomy_validation_judge_vs_human")
+    _print_agreement("human (judge's own accuracy; 'rule_*' columns refer to the judge here)", judged["judge_category"].tolist(),
+                     judged["human_category"].tolist(), "taxonomy_validation_judge_vs_human", labeller="Judge")
 
 
 _README = """Kiểm tra nhãn loại lỗi (taxonomy validation)
