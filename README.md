@@ -77,10 +77,15 @@ uv run main.py report              # tables + manuscript figures (results/figure
 
 # Not a tier: ground-truth annotation reliability, once a control subset exists
 uv run main.py label-agreement
+
+# Added in revision (see docs/experimental-design.md#revision-experiments-first-round-review)
+python scripts/run_ocr.py            # OCR stage, in its own environment
+uv run main.py ocr-pipeline          # OCR -> text-LLM baseline
+uv run main.py taxonomy-validation   # validate the Tier 4 error taxonomy
 ```
 
 Every API-calling subcommand (`benchmark`, `prompt-sensitivity`,
-`perturbation`) supports `--models`, `--images` or `--start-id`/`--end-id`/
+`perturbation`, `ocr-pipeline`, `taxonomy-validation`) supports `--models`, `--images` or `--start-id`/`--end-id`/
 `--limit`, `--force` (bypass cache), `--resume` (report cache coverage before
 running), and `--dry-run` (print the scope, no API calls, no cost figure —
 actual spend is tracked from real usage in `results/cost_ledger.csv`).

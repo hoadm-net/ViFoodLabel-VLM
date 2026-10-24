@@ -19,7 +19,9 @@ roster) before touching scoring logic or experiment design.
   (`benchmark`, `prompt-sensitivity`, `perturbation`, `error-sample`,
   `report` — one per experimental tier, plus `label-agreement`: a
   data-quality check comparing the ground truth against a double-annotated
-  control subset, not one of the 4 tiers). Run with
+  control subset, not one of the 4 tiers; and, added in revision,
+  `ocr-pipeline` (OCR -> text-LLM baseline) and `taxonomy-validation`
+  (Tier 4 rule check against judge/human labels)). Run with
   `uv run main.py <subcommand> --help`.
 - Each subcommand's argument parsing + orchestration lives in its own module
   under `src/vifoodlabel/cli/` (`benchmark.py`, `prompt_sensitivity.py`,

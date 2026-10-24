@@ -37,6 +37,10 @@ concrete examples:
 | Model | Slug | Input $/M | Output $/M |
 |---|---|---|---|
 | Qwen3-VL-235B-A22B-Instruct | `qwen/qwen3-vl-235b-a22b-instruct` | 0.20 | 0.88 |
+
+(Prices as listed for the original submission run. Re-verified 2026-10-24
+for the revision runs: Qwen3-VL-235B is now 0.21/1.90 and MiMo-V2.5
+0.119/0.238 — `configs/models.yaml` holds the current values.)
 | GLM-4.6V | `z-ai/glm-4.6v` | 0.30 | 0.90 |
 | MiMo-V2.5 | `xiaomi/mimo-v2.5` | 0.105 | 0.28 |
 
@@ -88,3 +92,40 @@ mitigations (`repetition_penalty`, a streaming loop-cutoff) that no other
 model in the roster needs — see experimental-design.md's inference
 parameters section for the full explanation; it's the one place inference
 isn't identical across all 7 models.
+
+## Added in revision: general ~3B controls and support models
+
+Reviewer request: separate Vietnamese specialization from scale directly.
+Two general VLMs at Vintern's scale, self-hosted exactly like it (same
+`repetition_penalty` + loop cut-off, since the call path is shared by
+every local model):
+
+| Model | Slug | Why |
+|---|---|---|
+| InternVL2.5-4B | `OpenGVLab/InternVL2_5-4B` | InternViT-300M + Qwen2.5-3B-Instruct — Vintern's architecture family and exact LLM backbone, without the Vietnamese fine-tuning |
+| Qwen2.5-VL-3B-Instruct | `Qwen/Qwen2.5-VL-3B-Instruct` | a strong general 3B VLM from another family |
+
+Support models carry a `role` in `configs/models.yaml` and are never part
+of a default selection (they must be named with `--models`):
+
+- `qwen2.5-3b-text` (`Qwen/Qwen2.5-3B-Instruct`, self-hosted, role
+  `ocr_llm`) — text-only structuring LLM for the OCR -> LLM baseline;
+  Vintern's own language backbone.
+- `judge-gemini-3.1-pro` (`google/gemini-3.1-pro-preview`, role `judge`) —
+  taxonomy-validation labeller, deliberately from a family outside the
+  evaluated roster.
+
+### Self-hosting on an older datacenter GPU (V100, used for the revision)
+
+The revision runs served all four local models on one Tesla V100-32GB
+(compute capability 7.0). Recent PyTorch CUDA 12.8+ wheels no longer ship
+sm_70 kernels, so pin the stack used by `scripts/serve_vintern.sh`'s
+troubleshooting note: `vllm==0.9.2`, `transformers==4.52.4`, torch 2.7.0
+(cu126). V100 has no bf16 — pass `--dtype float16`. Ports:
+Vintern 8000, InternVL 8001, Qwen2.5-VL 8002, Qwen2.5-3B text 8003
+(`configs/models.yaml`). Practicalities that cost time:
+- Start servers one at a time — concurrent starts on one GPU break vLLM's
+  memory profiling. Two fit side by side at `--gpu-memory-utilization 0.45`
+  (Qwen2.5-VL needs ~0.6: its image-profiling pass is larger).
+- Don't name your own env var `VLLM_PORT`: vLLM uses it internally.
+- Text-only models: omit `--limit-mm-per-prompt`.

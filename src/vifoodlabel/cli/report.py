@@ -46,7 +46,7 @@ _OTHER_CATEGORIES = ["pairing_error", "diacritics", "wrong_unit", "malformed_jso
 
 CAPTIONS = {
     1: (
-        "Fig. 1 Per-field F1 for the seven evaluated models under the canonical "
+        "Fig. 1 Per-field F1 for the evaluated models under the canonical "
         "Vietnamese zero-shot condition on all 600 images. Scalar fields use the "
         "lenient match criterion, list fields use Hungarian set matching, and the "
         "nutrition column reports name F1. The rightmost column reports the macro "

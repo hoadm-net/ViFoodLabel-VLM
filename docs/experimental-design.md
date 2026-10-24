@@ -146,6 +146,35 @@ had none at all) and is the least reliable rule in the module — flagged via
 categories wrong too often, the fix is revisiting the rules in
 `error_taxonomy.py`, not adding a human double-coding step back.
 
+## Revision experiments (first-round review)
+
+Run after the original submission; the submitted numbers are unchanged —
+these are additional measurements. See `results/REVISION_NUMBERS.md`
+(local, not in git) for the numbers.
+
+- **~3B general controls** — InternVL2.5-4B and Qwen2.5-VL-3B (see
+  [models.md](models.md#added-in-revision-general-3b-controls-and-support-models))
+  through Tiers 1-3 alongside a re-run of Vintern, all 600 images.
+- **API models on the pinned subset** — Tier 1 (`benchmark --images` the
+  120 ids) and rotation only (`perturbation --kinds rotation`): a paired
+  clean baseline, the image-input arm of the OCR comparison, and an error
+  source for the taxonomy validation. Not replacement Tier 1 scores.
+- **OCR -> LLM baseline** — `scripts/run_ocr.py` (PaddleOCR PP-OCRv6
+  detection + VietOCR recognition, own environment; PaddleOCR's own
+  Vietnamese recognizer drops stacked diacritics and was rejected), then
+  `uv run main.py ocr-pipeline`: same field descriptions and rules, OCR
+  transcript in place of the image (`prompts/task_instruction_ocr_vi.txt`).
+- **Taxonomy validation** — `uv run main.py taxonomy-validation`: stratified
+  sample (<= 30 per rule category) of Tier 4 errors, labelled blind by an
+  LLM judge (`prompts/taxonomy_judge_en.txt`), then confirmed by a human via
+  an offline page (`--export-review DIR`, merged back with
+  `--import-review CSV`); reports Cohen's kappa and per-category rule
+  precision/recall.
+- **Extra report outputs** — Holm vs Bonferroni McNemar counts, paired
+  t / Wilcoxon tests, mean/median/trimmed-mean ranking, emission and
+  output-length analysis, Tier 3 paired deltas with CIs and per-field
+  breakdown, OCR vs image, per-field inter-annotator agreement.
+
 ## Label agreement — ground-truth annotation reliability
 
 `uv run main.py label-agreement` is **not one of the four tiers** — it's a
